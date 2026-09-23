@@ -1,20 +1,22 @@
 package ch.lxrin.ql.table;
 
+import ch.lxrin.ql.expr.Expression;
+import ch.lxrin.ql.expr.Renderable;
+import ch.lxrin.ql.expr.RenderContext;
+
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+
 /**
- * Base class for user-defined table definitions.
+ * Base class for typed table definitions.
  *
- * <p>Extend this class to declare a database table and its columns as
- * strongly-typed Java fields. Those {@link Column} instances can then be
- * passed directly to {@link ch.lxrin.ql.QueryBuilder} and
- * {@link ch.lxrin.ql.SelectIntoBuilder} instead of raw SQL strings.</p>
- *
- * <h2>Defining a table</h2>
+ * <p>Declare one subclass per table and its columns as fields:</p>
  * <pre>{@code
  * public class ProductTable extends TableDef {
- *
- *     public final Column productNr = column("PRODUCT_NR");  // → "p.PRODUCT_NR", alias "productNr"
- *     public final Column name      = column("NAME");         // → "p.NAME",       alias "name"
- *     public final Column price     = column("PRICE");        // → "p.PRICE",      alias "price"
+ *     public final Column productNr = column("PRODUCT_NR");  // p.PRODUCT_NR, alias "productNr"
+ *     public final Column name      = column("NAME");         // p.NAME,       alias "name"
+ *     public final Column price     = column("PRICE");        // p.PRICE,      alias "price"
  *
  *     public ProductTable() {
  *         super("PRODUCT", "p");
@@ -22,43 +24,17 @@ package ch.lxrin.ql.table;
  * }
  * }</pre>
  *
- * <h2>Using in a query</h2>
- * <pre>{@code
- * import static ch.lxrin.ql.LxrinQL.*;
- *
- * ProductTable p = new ProductTable();
- *
- * List<ProductBean> products = createContribution(ProductBean.class)
- *     .from(p)
- *     .select(p.productNr)
- *     .select(p.name)
- *     .where(eq(p.productNr, ":productNr"))
- *     .bind("productNr", 42L)
- *     .mapWith(row -> new ProductBean((Long) row[0], (String) row[1]))
- *     .multiple();
- * }</pre>
- *
- * <h2>Using with selectInto</h2>
- * <pre>{@code
- * ProductTable p = new ProductTable();
- *
- * selectInto(myTablePageData)
- *     .from(p)
- *     .select(p.productNr)
- *     .select(p.name)
- *     .execute();
- * // → SELECT p.PRODUCT_NR, p.NAME FROM PRODUCT p INTO :productNr, :name
- * }</pre>
+ * <p>Use the same class with a different alias for self-joins by adding a
+ * second constructor ({@code public ProductTable(String alias)}).</p>
  */
-public abstract class TableDef {
+public abstract class TableDef implements Renderable {
 
     private final String tableName;
     private final String alias;
+    private final List<Column> columns = new ArrayList<>();
 
     /**
-     * Creates a table definition.
-     *
-     * @param tableName SQL table name, e.g. {@code "PRODUCT"}
+     * @param tableName SQL table name, optionally schema-qualified, e.g. {@code "PRODUCT"} or {@code "sales.PRODUCT"}
      * @param alias     table alias used in queries, e.g. {@code "p"}
      */
     protected TableDef(String tableName, String alias) {
@@ -73,57 +49,63 @@ public abstract class TableDef {
     }
 
     // -------------------------------------------------------------------------
-    // Column factory methods (for use inside subclass constructors / field init)
+    // Column factory methods
     // -------------------------------------------------------------------------
 
     /**
-     * Creates a {@link Column} whose SQL expression is {@code alias.COLUMN_NAME}.
-     * The Java alias is automatically derived by converting
-     * {@code UPPER_SNAKE_CASE} to {@code lowerCamelCase}
-     * (e.g. {@code "PRODUCT_NR"} → {@code "productNr"}, {@code "ID"} → {@code "id"}).
-     *
-     * @param columnName SQL column name in {@code UPPER_SNAKE_CASE}
-     * @return a new {@link Column}
+     * Creates a column whose Java alias is derived from the SQL name
+     * ({@code UPPER_SNAKE_CASE} &rarr; {@code lowerCamelCase}, e.g.
+     * {@code "PRODUCT_NR"} &rarr; {@code "productNr"}).
      */
     protected Column column(String columnName) {
         if (columnName == null || columnName.isBlank()) {
             throw new IllegalArgumentException("columnName must not be blank");
         }
-        return new Column(alias + "." + columnName, toCamelCase(columnName));
+        return register(new Column(this, columnName, toCamelCase(columnName)));
     }
 
-    /**
-     * Creates a {@link Column} with an explicit Java alias.
-     * Use this when the auto-derived camelCase alias does not match the
-     * property name on your target bean.
-     *
-     * @param columnName SQL column name, e.g. {@code "PRODUCT_NR"}
-     * @param alias      explicit Java alias, e.g. {@code "productNr"}
-     * @return a new {@link Column}
-     */
-    protected Column column(String columnName, String alias) {
+    /** Creates a column with an explicit Java alias. */
+    protected Column column(String columnName, String javaAlias) {
         if (columnName == null || columnName.isBlank()) {
             throw new IllegalArgumentException("columnName must not be blank");
         }
-        if (alias == null || alias.isBlank()) {
+        if (javaAlias == null || javaAlias.isBlank()) {
             throw new IllegalArgumentException("alias must not be blank");
         }
-        return new Column(this.alias + "." + columnName, alias);
+        return register(new Column(this, columnName, javaAlias));
+    }
+
+    private Column register(Column column) {
+        columns.add(column);
+        return column;
     }
 
     // -------------------------------------------------------------------------
     // SQL accessors
     // -------------------------------------------------------------------------
 
-    /**
-     * Returns the {@code "TABLE_NAME alias"} fragment suitable for a FROM clause,
-     * e.g. {@code "PRODUCT p"}.
-     */
+    /** Returns all columns in declaration order, e.g. for {@code select(p.columns())}. */
+    public List<Column> columns() {
+        return Collections.unmodifiableList(columns);
+    }
+
+    /** {@code alias.*} */
+    public Expression all() {
+        return ctx -> ctx.append(alias).append(".*");
+    }
+
+    /** Returns the {@code "TABLE_NAME alias"} fragment for {@code FROM}, e.g. {@code "PRODUCT p"}. */
     public String toFromSql() {
         return tableName + " " + alias;
     }
 
-    /** Returns the raw table name, e.g. {@code "PRODUCT"}. */
+    /** Renders {@code TABLE_NAME alias}. */
+    @Override
+    public void render(RenderContext ctx) {
+        ctx.append(tableName).append(' ').append(alias);
+    }
+
+    /** Returns the table name, e.g. {@code "PRODUCT"}. */
     public String getTableName() {
         return tableName;
     }
@@ -133,17 +115,14 @@ public abstract class TableDef {
         return alias;
     }
 
-    // -------------------------------------------------------------------------
-    // Internal helpers
-    // -------------------------------------------------------------------------
+    @Override
+    public String toString() {
+        return toFromSql();
+    }
 
     /**
-     * Converts {@code UPPER_SNAKE_CASE} to {@code lowerCamelCase}.
-     * <ul>
-     *   <li>{@code "PRODUCT_NR"} → {@code "productNr"}</li>
-     *   <li>{@code "FIRST_NAME"} → {@code "firstName"}</li>
-     *   <li>{@code "ID"}        → {@code "id"}</li>
-     * </ul>
+     * Converts {@code UPPER_SNAKE_CASE} to {@code lowerCamelCase}:
+     * {@code "PRODUCT_NR"} &rarr; {@code "productNr"}, {@code "ID"} &rarr; {@code "id"}.
      */
     static String toCamelCase(String snakeCase) {
         if (snakeCase == null || snakeCase.isBlank()) {

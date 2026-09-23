@@ -1,190 +1,138 @@
 package ch.lxrin.ql;
 
-import ch.lxrin.ql.condition.Condition;
-import ch.lxrin.ql.condition.Conditions;
-import ch.lxrin.ql.table.Column;
+import ch.lxrin.ql.exec.SqlExecutor;
+import ch.lxrin.ql.exec.SqlExecutors;
+import ch.lxrin.ql.function.Functions;
+import ch.lxrin.ql.query.DeleteQuery;
+import ch.lxrin.ql.query.InsertQuery;
+import ch.lxrin.ql.query.SelectQuery;
+import ch.lxrin.ql.query.TruncateQuery;
+import ch.lxrin.ql.query.UpdateQuery;
+import ch.lxrin.ql.table.Table;
+import ch.lxrin.ql.table.TableDef;
 
 /**
- * Main entry point for the <strong>LxrinQL</strong> query-builder library.
- *
- * <p>This class provides static factory methods to create query builders and
- * exposes all {@link Conditions} helpers as convenience re-exports so that a
- * single static import is sufficient:</p>
+ * Entry point of the <strong>LxrinQL</strong> DSL. One static import gives
+ * access to every statement factory, condition, function and helper:
  *
  * <pre>{@code
  * import static ch.lxrin.ql.LxrinQL.*;
  *
- * List<MyBean> rows = createContribution(MyBean.class)
- *     .from("MY_TABLE t")
- *     .select("t.ID",   "id")
- *     .select("t.NAME", "name")
- *     .join("LEFT JOIN ADDRESS a ON a.PERSON_ID = t.ID")
- *     .where(eq("t.STATUS", ":status"), and(), gt("t.AGE", ":minAge"))
- *     .bind("status", "ACTIVE")
- *     .bind("minAge",  18)
- *     .mapWith(row -> new MyBean((Long)row[0], (String)row[1]))
+ * PersonTable p = new PersonTable();
+ *
+ * List<PersonDto> adults = createContribution(PersonDto.class)
+ *     .select(p.personNr, p.firstName, p.lastName)
+ *     .from(p)
+ *     .where(eq(p.status, val("ACTIVE")), ge(p.age, 18))
+ *     .orderBy(p.lastName.asc())
  *     .multiple();
+ *
+ * Long id = insertInto(p)
+ *     .set(p.firstName, val("Ada"))
+ *     .set(p.lastName, val("Lovelace"))
+ *     .returning(p.personNr)
+ *     .single(Long.class);
  * }</pre>
  *
- * <h2>selectInto – Eclipse Scout table page data</h2>
- * <pre>{@code
- * LxrinQL.selectInto(myTablePageData)
- *     .from("MY_TABLE t")
- *     .select("t.ID",   "id")
- *     .select("t.NAME", "name")
- *     .where(eq("t.STATUS", ":status"))
- *     .bind("status", "ACTIVE")
- *     .execute();
- * }</pre>
- *
- * <p><em>This project is AI-generated.</em></p>
- *
- * @see QueryBuilder
- * @see SelectIntoBuilder
- * @see Conditions
+ * <p>The static methods are inherited from {@link Functions},
+ * {@link ch.lxrin.ql.condition.Conditions} and
+ * {@link ch.lxrin.ql.expr.Expressions}; this class adds the statement
+ * factories and configuration.</p>
  */
-public final class LxrinQL {
+public final class LxrinQL extends Functions {
 
     private LxrinQL() {}
 
     // =========================================================================
-    // Factory methods
+    // SELECT
     // =========================================================================
 
     /**
-     * Creates a {@link QueryBuilder} for the given element type.
-     *
-     * <p>Call {@link QueryBuilder#single()} to fetch one row or
-     * {@link QueryBuilder#multiple()} to fetch all rows.</p>
-     *
-     * @param elementType the class of the objects returned by the query
-     * @param <T>         element type
-     * @return a new, empty {@link QueryBuilder}
+     * Starts a {@code SELECT} whose rows are mapped to {@code elementType}.
+     * Continue with {@code .select(..)}, {@code .from(..)}, ... and finish with
+     * {@code .single()}, {@code .optional()} or {@code .multiple()}.
      */
-    public static <T> QueryBuilder<T> createContribution(Class<T> elementType) {
-        return new QueryBuilder<>(elementType);
+    public static <T> SelectQuery<T> createContribution(Class<T> elementType) {
+        return new SelectQuery<>(elementType);
     }
 
     /**
-     * Convenience overload matching the {@code createContribution(List.class, MyBean.class)}
-     * syntax described in the project requirements.
-     *
-     * <p>The {@code collectionType} parameter is accepted but ignored – the
-     * returned builder's {@link QueryBuilder#multiple()} method always returns a
-     * {@link java.util.List}.</p>
-     *
-     * @param collectionType ignored – kept for API symmetry (e.g. {@code List.class})
-     * @param elementType    the element class
-     * @param <T>            element type
-     * @return a new, empty {@link QueryBuilder}
+     * Same as {@link #createContribution(Class)}; the collection type is only
+     * for readability ({@code createContribution(List.class, PersonDto.class)}).
      */
-    public static <T> QueryBuilder<T> createContribution(
-            @SuppressWarnings("unused") Class<?> collectionType,
-            Class<T> elementType) {
-        return new QueryBuilder<>(elementType);
+    public static <T> SelectQuery<T> createContribution(@SuppressWarnings("unused") Class<?> collectionType,
+                                                        Class<T> elementType) {
+        return new SelectQuery<>(elementType);
+    }
+
+    /** Alias of {@link #createContribution(Class)}. */
+    public static <T> SelectQuery<T> query(Class<T> elementType) {
+        return new SelectQuery<>(elementType);
+    }
+
+    /** Starts a {@code SELECT items} whose rows are returned as {@code Object[]}. */
+    public static SelectQuery<Object[]> select(Object... items) {
+        return new SelectQuery<>(Object[].class).select(items);
+    }
+
+    /** Starts a {@code SELECT items} whose rows are mapped to {@code elementType}. */
+    public static <T> SelectQuery<T> select(Class<T> elementType, Object... items) {
+        return new SelectQuery<>(elementType).select(items);
+    }
+
+    /** Starts a {@code SELECT DISTINCT items} whose rows are returned as {@code Object[]}. */
+    public static SelectQuery<Object[]> selectDistinct(Object... items) {
+        return select(items).distinct();
+    }
+
+    /** {@code SELECT * FROM table} with rows as {@code Object[]}. */
+    public static SelectQuery<Object[]> selectFrom(Object table) {
+        return new SelectQuery<>(Object[].class).from(table);
+    }
+
+    // =========================================================================
+    // Data modification
+    // =========================================================================
+
+    /** Starts an {@code INSERT INTO table}. */
+    public static InsertQuery insertInto(Object table) {
+        return new InsertQuery(table);
+    }
+
+    /** Starts an {@code UPDATE table}. */
+    public static UpdateQuery update(Object table) {
+        return new UpdateQuery(table);
+    }
+
+    /** Starts a {@code DELETE FROM table}. */
+    public static DeleteQuery deleteFrom(Object table) {
+        return new DeleteQuery(table);
+    }
+
+    /** Starts a {@code TRUNCATE tables}. */
+    public static TruncateQuery truncate(Object... tables) {
+        return new TruncateQuery(tables);
+    }
+
+    // =========================================================================
+    // Tables and configuration
+    // =========================================================================
+
+    /** Creates an ad-hoc table reference: {@code table("ADDRESS", "a").col("CITY")}. */
+    public static Table table(String tableName, String alias) {
+        return new Table(tableName, alias);
+    }
+
+    /** Returns the {@code FROM} fragment of a table definition, e.g. {@code "PERSON p"}. */
+    public static String fromSql(TableDef table) {
+        return table.toFromSql();
     }
 
     /**
-     * Creates a {@link SelectIntoBuilder} that fills the given Eclipse Scout
-     * table page data object.
-     *
-     * @param tableData an Eclipse Scout {@code AbstractTablePageData} (or any
-     *                  compatible bean)
-     * @return a new {@link SelectIntoBuilder}
+     * Sets the executor used by all statements without an explicit
+     * {@code .executor(..)}, e.g. {@code setDefaultExecutor(new JdbcSqlExecutor(dataSource))}.
      */
-    public static SelectIntoBuilder selectInto(Object tableData) {
-        return new SelectIntoBuilder(tableData);
+    public static void setDefaultExecutor(SqlExecutor executor) {
+        SqlExecutors.setDefault(executor);
     }
-
-    // =========================================================================
-    // Conditions re-exports (convenience – avoids a second static import)
-    // =========================================================================
-
-    /** @see Conditions#eq(String, String) */
-    public static Condition eq(String column, String value)   { return Conditions.eq(column, value); }
-
-    /** @see Conditions#ne(String, String) */
-    public static Condition ne(String column, String value)   { return Conditions.ne(column, value); }
-
-    /** @see Conditions#gt(String, String) */
-    public static Condition gt(String column, String value)   { return Conditions.gt(column, value); }
-
-    /** @see Conditions#lt(String, String) */
-    public static Condition lt(String column, String value)   { return Conditions.lt(column, value); }
-
-    /** @see Conditions#ge(String, String) */
-    public static Condition ge(String column, String value)   { return Conditions.ge(column, value); }
-
-    /** @see Conditions#le(String, String) */
-    public static Condition le(String column, String value)   { return Conditions.le(column, value); }
-
-    /** @see Conditions#like(String, String) */
-    public static Condition like(String column, String value) { return Conditions.like(column, value); }
-
-    /** @see Conditions#ilike(String, String) */
-    public static Condition ilike(String column, String value){ return Conditions.ilike(column, value); }
-
-    /** @see Conditions#in(String, String...) */
-    public static Condition in(String column, String... values) { return Conditions.in(column, values); }
-
-    /** @see Conditions#between(String, String, String) */
-    public static Condition between(String column, String from, String to) { return Conditions.between(column, from, to); }
-
-    /** @see Conditions#isNull(String) */
-    public static Condition isNull(String column)    { return Conditions.isNull(column); }
-
-    /** @see Conditions#isNotNull(String) */
-    public static Condition isNotNull(String column) { return Conditions.isNotNull(column); }
-
-    // -------------------------------------------------------------------------
-    // Column-based condition overloads (use with TableDef columns)
-    // -------------------------------------------------------------------------
-
-    /** @see Conditions#eq(Column, String) */
-    public static Condition eq(Column column, String value)   { return Conditions.eq(column, value); }
-
-    /** @see Conditions#ne(Column, String) */
-    public static Condition ne(Column column, String value)   { return Conditions.ne(column, value); }
-
-    /** @see Conditions#gt(Column, String) */
-    public static Condition gt(Column column, String value)   { return Conditions.gt(column, value); }
-
-    /** @see Conditions#lt(Column, String) */
-    public static Condition lt(Column column, String value)   { return Conditions.lt(column, value); }
-
-    /** @see Conditions#ge(Column, String) */
-    public static Condition ge(Column column, String value)   { return Conditions.ge(column, value); }
-
-    /** @see Conditions#le(Column, String) */
-    public static Condition le(Column column, String value)   { return Conditions.le(column, value); }
-
-    /** @see Conditions#like(Column, String) */
-    public static Condition like(Column column, String value) { return Conditions.like(column, value); }
-
-    /** @see Conditions#ilike(Column, String) */
-    public static Condition ilike(Column column, String value){ return Conditions.ilike(column, value); }
-
-    /** @see Conditions#in(Column, String...) */
-    public static Condition in(Column column, String... values) { return Conditions.in(column, values); }
-
-    /** @see Conditions#between(Column, String, String) */
-    public static Condition between(Column column, String from, String to) { return Conditions.between(column, from, to); }
-
-    /** @see Conditions#isNull(Column) */
-    public static Condition isNull(Column column)    { return Conditions.isNull(column); }
-
-    /** @see Conditions#isNotNull(Column) */
-    public static Condition isNotNull(Column column) { return Conditions.isNotNull(column); }
-
-    /** @see Conditions#and() */
-    public static Condition and() { return Conditions.and(); }
-
-    /** @see Conditions#or() */
-    public static Condition or()  { return Conditions.or(); }
-
-    /** @see Conditions#not(Condition) */
-    public static Condition not(Condition c) { return Conditions.not(c); }
-
-    /** @see Conditions#group(Condition...) */
-    public static Condition group(Condition... c) { return Conditions.group(c); }
 }

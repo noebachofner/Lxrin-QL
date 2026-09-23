@@ -1,63 +1,68 @@
 package ch.lxrin.ql.table;
 
+import ch.lxrin.ql.expr.Expression;
+import ch.lxrin.ql.expr.RenderContext;
+
 /**
- * A strongly-typed reference to a database column, carrying both the
- * SQL expression (e.g. {@code "p.PRODUCT_NR"}) and a Java-style alias
- * (e.g. {@code "productNr"}).
+ * A typed reference to a database column. It knows
+ * <ul>
+ *   <li>its qualified SQL expression, e.g. {@code p.PRODUCT_NR} (used in
+ *       {@code SELECT}, {@code WHERE}, {@code ORDER BY}, ...),</li>
+ *   <li>its unqualified column name, e.g. {@code PRODUCT_NR} (used in
+ *       {@code INSERT} column lists and {@code UPDATE ... SET}),</li>
+ *   <li>a Java-style alias, e.g. {@code productNr} (used to map result
+ *       columns to bean properties).</li>
+ * </ul>
  *
- * <p>Instances are created exclusively through {@link TableDef#column(String)}
- * or {@link TableDef#column(String, String)} to ensure the table alias is
- * always included in the SQL expression.</p>
- *
- * <h2>Direct use with conditions</h2>
+ * <p>Columns are created by {@link TableDef#column(String)}. As an
+ * {@link Expression} they offer the fluent condition API:</p>
  * <pre>{@code
  * ProductTable p = new ProductTable();
- *
- * // Conditions accept Column directly:
- * createContribution(ProductBean.class)
- *     .from(p)
- *     .select(p.productNr)
- *     .where(eq(p.productNr, ":productNr"))
- *     .bind("productNr", 42L)
- *     .single();
+ * select(p.productNr, p.name).from(p).where(p.price.gt(100)).multiple();
  * }</pre>
  */
-public class Column {
+public class Column implements Expression {
 
-    private final String sqlExpression;
+    private final TableDef table;
+    private final String name;
     private final String alias;
 
-    /**
-     * Package-private constructor – use {@link TableDef#column} to create instances.
-     */
-    Column(String sqlExpression, String alias) {
-        this.sqlExpression = sqlExpression;
+    /** Package-private – use {@link TableDef#column} to create instances. */
+    Column(TableDef table, String name, String alias) {
+        this.table = table;
+        this.name = name;
         this.alias = alias;
     }
 
-    /**
-     * Returns the fully-qualified SQL column expression, e.g. {@code "p.PRODUCT_NR"}.
-     * This is what appears in the {@code SELECT} list and in {@code WHERE} conditions.
-     */
+    /** Returns the qualified SQL expression, e.g. {@code "p.PRODUCT_NR"}. */
+    @Override
     public String toSql() {
-        return sqlExpression;
+        return table.getAlias() + "." + name;
     }
 
-    /**
-     * Returns the Java-style alias, e.g. {@code "productNr"}.
-     * This is used as the {@code INTO :alias} target in Scout's {@code selectInto}.
-     */
+    @Override
+    public void render(RenderContext ctx) {
+        ctx.append(table.getAlias()).append('.').append(name);
+    }
+
+    /** Returns the unqualified column name, e.g. {@code "PRODUCT_NR"}. */
+    public String getName() {
+        return name;
+    }
+
+    /** Returns the Java-style alias, e.g. {@code "productNr"}. */
     public String getAlias() {
         return alias;
     }
 
-    /**
-     * Returns the SQL expression (same as {@link #toSql()}).
-     * Enables {@code Column} to be used anywhere a {@code String} expression is expected
-     * via {@code column.toString()}.
-     */
+    /** Returns the table this column belongs to. */
+    public TableDef getTable() {
+        return table;
+    }
+
+    /** Returns the qualified SQL expression (same as {@link #toSql()}). */
     @Override
     public String toString() {
-        return sqlExpression;
+        return toSql();
     }
 }

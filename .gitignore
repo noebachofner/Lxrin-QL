@@ -1,10 +1,13 @@
-# Java / Maven
+# Java / Maven / Gradle
 target/
+.gradle/
+.kotlin/
 *.class
 *.jar
 *.war
 *.ear
 *.nar
+!gradle/wrapper/gradle-wrapper.jar
 
 # IDEs
 .idea/
