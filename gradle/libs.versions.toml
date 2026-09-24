@@ -26,6 +26,11 @@ flyway-postgresql = { module = "org.flywaydb:flyway-database-postgresql", versio
 archunit = { module = "com.tngtech.archunit:archunit", version.ref = "archunit" }
 spring-boot-dependencies = { module = "org.springframework.boot:spring-boot-dependencies", version.ref = "spring-boot" }
 spring-boot-autoconfigure = { module = "org.springframework.boot:spring-boot-autoconfigure" }
+spring-boot-starter = { module = "org.springframework.boot:spring-boot-starter" }
+spring-boot-jackson = { module = "org.springframework.boot:spring-boot-jackson" }
+spring-boot-micrometer-observation = { module = "org.springframework.boot:spring-boot-micrometer-observation" }
+spring-tx = { module = "org.springframework:spring-tx" }
+spring-boot-starter-jackson = { module = "org.springframework.boot:spring-boot-starter-jackson" }
 spring-boot-jdbc = { module = "org.springframework.boot:spring-boot-jdbc" }
 spring-boot-test = { module = "org.springframework.boot:spring-boot-starter-test" }
 spring-boot-starter-jdbc = { module = "org.springframework.boot:spring-boot-starter-jdbc" }

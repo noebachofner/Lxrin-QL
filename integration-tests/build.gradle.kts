@@ -16,6 +16,12 @@ dependencies {
     testImplementation(libs.flyway.core)
     testImplementation(libs.flyway.postgresql)
     testImplementation(gradleTestKit())
+    testImplementation(project(":lxrin-ql-spring"))
+    testImplementation(platform(libs.spring.boot.dependencies))
+    testImplementation(libs.spring.boot.starter.jdbc)
+    testImplementation(libs.spring.boot.starter.jackson)
+    testImplementation(libs.spring.boot.micrometer.observation)
+    testImplementation(libs.spring.boot.test)
     testRuntimeOnly(libs.junit.launcher)
     codegen(project(":lxrin-ql-codegen"))
 }
@@ -57,6 +63,8 @@ val publishedModules = listOf(":lxrin-ql-bom", ":lxrin-ql-core", ":lxrin-ql-code
 tasks.test {
     // one PostgreSQL container is shared by all test classes of this JVM
     maxParallelForks = 1
+    // the Gradle TestKit jar brings its own SLF4J binding, which Spring Boot's Logback setup rejects
+    systemProperty("org.springframework.boot.logging.LoggingSystem", "none")
     publishedModules.forEach { dependsOn("$it:publishAllPublicationsToIntegrationTestRepository") }
     inputs.dir("consumers").withPathSensitivity(PathSensitivity.RELATIVE)
     systemProperty("lxrin.consumers", layout.projectDirectory.dir("consumers").asFile.absolutePath)

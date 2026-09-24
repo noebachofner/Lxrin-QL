@@ -20,6 +20,7 @@ include(
     "lxrin-ql-codegen",
     "lxrin-ql-gradle-plugin",
     "lxrin-ql-maven-plugin",
+    "lxrin-ql-spring",
     "lxrin-ql-legacy",
     "integration-tests",
 )

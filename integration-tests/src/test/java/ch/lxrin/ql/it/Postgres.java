@@ -29,6 +29,24 @@ public final class Postgres {
         return dataSource;
     }
 
+    /** Returns the JDBC URL of the shared container. */
+    public static String jdbcUrl() {
+        dataSource();
+        return container.getJdbcUrl();
+    }
+
+    /** Returns the user of the shared container. */
+    public static String user() {
+        dataSource();
+        return container.getUsername();
+    }
+
+    /** Returns the password of the shared container. */
+    public static String password() {
+        dataSource();
+        return container.getPassword();
+    }
+
     /** Runs SQL statements (separated by {@code ;} at line ends) outside LxrinQL. */
     public static void execute(String sql) {
         try (Connection con = dataSource().getConnection(); Statement s = con.createStatement()) {
