@@ -18,6 +18,8 @@ include(
     "lxrin-ql-bom",
     "lxrin-ql-core",
     "lxrin-ql-codegen",
+    "lxrin-ql-gradle-plugin",
+    "lxrin-ql-maven-plugin",
     "lxrin-ql-legacy",
     "integration-tests",
 )

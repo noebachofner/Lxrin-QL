@@ -15,6 +15,7 @@ dependencies {
     testImplementation(libs.testcontainers.postgresql)
     testImplementation(libs.flyway.core)
     testImplementation(libs.flyway.postgresql)
+    testImplementation(gradleTestKit())
     testRuntimeOnly(libs.junit.launcher)
     codegen(project(":lxrin-ql-codegen"))
 }
@@ -50,7 +51,16 @@ sourceSets.test {
     resources.srcDir(generateSchemaCode.map { generatedResources })
 }
 
+// The consumer projects use the artifacts of this build from a file repository.
+val publishedModules = listOf(":lxrin-ql-bom", ":lxrin-ql-core", ":lxrin-ql-codegen", ":lxrin-ql-gradle-plugin", ":lxrin-ql-maven-plugin")
+
 tasks.test {
     // one PostgreSQL container is shared by all test classes of this JVM
     maxParallelForks = 1
+    publishedModules.forEach { dependsOn("$it:publishAllPublicationsToIntegrationTestRepository") }
+    inputs.dir("consumers").withPathSensitivity(PathSensitivity.RELATIVE)
+    systemProperty("lxrin.consumers", layout.projectDirectory.dir("consumers").asFile.absolutePath)
+    systemProperty("lxrin.repo", rootProject.layout.buildDirectory.dir("it-repo").get().asFile.absolutePath)
+    // outside build/ so that "clean" does not force Maven to download its plugins again
+    systemProperty("lxrin.mavenLocalRepo", rootProject.layout.projectDirectory.dir(".gradle/it-m2").asFile.absolutePath)
 }

@@ -18,6 +18,11 @@ dependencies {
 val javaComponent = components["java"] as AdhocComponentWithVariants
 javaComponent.withVariantsFromConfiguration(configurations["testFixturesApiElements"]) { skip() }
 javaComponent.withVariantsFromConfiguration(configurations["testFixturesRuntimeElements"]) { skip() }
+afterEvaluate {
+    configurations.findByName("testFixturesSourcesElements")?.let { sources ->
+        javaComponent.withVariantsFromConfiguration(sources) { skip() }
+    }
+}
 
 tasks.jar {
     manifest {

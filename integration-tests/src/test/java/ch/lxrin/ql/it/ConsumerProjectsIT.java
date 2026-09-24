@@ -1,0 +1,100 @@
+package ch.lxrin.ql.it;
+
+import org.gradle.testkit.runner.BuildResult;
+import org.gradle.testkit.runner.GradleRunner;
+import org.gradle.testkit.runner.TaskOutcome;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
+
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
+import java.util.concurrent.TimeUnit;
+import java.util.stream.Stream;
+
+import static org.junit.jupiter.api.Assertions.*;
+
+/**
+ * Builds the example consumer projects in {@code consumers/} against the LxrinQL artifacts of this
+ * build (published to a file repository): a Gradle project with the Gradle plugin and a Maven project
+ * with the Maven plugin. Both generate code from Flyway migrations and compile and test against it.
+ */
+class ConsumerProjectsIT {
+
+    private static final Path CONSUMERS = Path.of(System.getProperty("lxrin.consumers"));
+    private static final Path REPO = Path.of(System.getProperty("lxrin.repo"));
+
+    @TempDir
+    Path work;
+
+    @Test
+    void gradleConsumerBuildsWithTheGradlePlugin() throws IOException {
+        Path project = copy(CONSUMERS.resolve("gradle-consumer"), work.resolve("gradle-consumer"));
+        GradleRunner runner = GradleRunner.create()
+                .withProjectDir(project.toFile())
+                .withArguments("build", "--stacktrace", "-PlxrinRepo=" + REPO.toUri())
+                .forwardOutput();
+        BuildResult first = runner.build();
+        assertEquals(TaskOutcome.SUCCESS, first.task(":generateLxrinQl").getOutcome());
+        assertEquals(TaskOutcome.SUCCESS, first.task(":test").getOutcome());
+        assertTrue(Files.exists(project.resolve("build/generated/sources/lxrinql/main/java/com/example/shop/db/CustomerTable.java")));
+        Path stub = project.resolve("src/main/java/com/example/shop/db/CustomerRepository.java");
+        assertTrue(Files.exists(stub), "repository stub created in src/main/java");
+
+        Files.writeString(stub, Files.readString(stub).replace("super(context);", "super(context);\n        // kept"));
+        BuildResult second = runner.build();
+        assertEquals(TaskOutcome.UP_TO_DATE, second.task(":generateLxrinQl").getOutcome());
+        assertTrue(Files.readString(stub).contains("// kept"));
+    }
+
+    @Test
+    void mavenConsumerBuildsWithTheMavenPlugin() throws Exception {
+        Path project = copy(CONSUMERS.resolve("maven-consumer"), work.resolve("maven-consumer"));
+        Path localRepo = Path.of(System.getProperty("lxrin.mavenLocalRepo"));
+        deleteRecursively(localRepo.resolve("ch/lxrin"));
+        List<String> command = new ArrayList<>(List.of(mavenExecutable(), "-B", "-e", "-ntp",
+                "-Dmaven.repo.local=" + localRepo, "-Dlxrin.repo=" + REPO.toUri(), "verify"));
+        ProcessBuilder pb = new ProcessBuilder(command).directory(project.toFile()).redirectErrorStream(true);
+        pb.environment().put("JAVA_HOME", System.getProperty("java.home"));
+        Process process = pb.start();
+        String output = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+        assertTrue(process.waitFor(15, TimeUnit.MINUTES), "maven timed out");
+        assertEquals(0, process.exitValue(), output);
+        assertTrue(output.contains("LxrinQL: generated"), output);
+        assertTrue(output.contains("Tests run: 1, Failures: 0"), output);
+        assertTrue(Files.exists(project.resolve("target/generated-sources/lxrinql/com/example/library/db/BookTable.java")));
+        assertTrue(Files.exists(project.resolve("src/main/java/com/example/library/db/BookRepository.java")));
+        assertTrue(Files.exists(project.resolve("target/maven-consumer-1.0.jar")));
+    }
+
+    private static String mavenExecutable() {
+        String home = System.getenv("MAVEN_HOME");
+        if (home != null && Files.exists(Path.of(home, "bin", "mvn"))) return Path.of(home, "bin", "mvn").toString();
+        return System.getProperty("os.name").toLowerCase().contains("win") ? "mvn.cmd" : "mvn";
+    }
+
+    private static Path copy(Path from, Path to) throws IOException {
+        try (Stream<Path> files = Files.walk(from)) {
+            for (Path source : (Iterable<Path>) files::iterator) {
+                Path rel = from.relativize(source);
+                String first = rel.getNameCount() == 0 ? "" : rel.getName(0).toString();
+                if (first.equals("build") || first.equals("target") || first.equals(".gradle")) continue;
+                Path target = to.resolve(rel.toString());
+                if (Files.isDirectory(source)) Files.createDirectories(target);
+                else Files.copy(source, target);
+            }
+        }
+        return to;
+    }
+
+    private static void deleteRecursively(Path dir) throws IOException {
+        if (!Files.exists(dir)) return;
+        try (Stream<Path> files = Files.walk(dir)) {
+            for (Path p : (Iterable<Path>) files.sorted(Comparator.reverseOrder())::iterator) Files.delete(p);
+        }
+    }
+}

@@ -1,0 +1,228 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Maven plugin descriptor, written by hand because the plugin is built with Gradle. -->
+<plugin>
+  <name>LxrinQL Maven Plugin</name>
+  <description>Generates LxrinQL tables, rows, entities and repositories from a PostgreSQL schema.</description>
+  <groupId>ch.lxrin</groupId>
+  <artifactId>lxrin-ql-maven-plugin</artifactId>
+  <version>@version@</version>
+  <goalPrefix>lxrin-ql</goalPrefix>
+  <isolatedRealm>false</isolatedRealm>
+  <inheritedByDefault>true</inheritedByDefault>
+  <requiredJavaVersion>17</requiredJavaVersion>
+  <requiredMavenVersion>3.6.3</requiredMavenVersion>
+  <mojos>
+    <mojo>
+      <goal>generate</goal>
+      <description>Generates LxrinQL sources and adds them as a compile source root.</description>
+      <requiresDirectInvocation>false</requiresDirectInvocation>
+      <requiresProject>true</requiresProject>
+      <requiresReports>false</requiresReports>
+      <aggregator>false</aggregator>
+      <requiresOnline>false</requiresOnline>
+      <inheritedByDefault>true</inheritedByDefault>
+      <phase>generate-sources</phase>
+      <implementation>ch.lxrin.ql.maven.GenerateMojo</implementation>
+      <language>java</language>
+      <instantiationStrategy>per-lookup</instantiationStrategy>
+      <executionStrategy>once-per-session</executionStrategy>
+      <threadSafe>true</threadSafe>
+      <parameters>
+        <parameter>
+          <name>project</name>
+          <type>org.apache.maven.project.MavenProject</type>
+          <required>true</required>
+          <editable>false</editable>
+          <description>The Maven project.</description>
+        </parameter>
+        <parameter>
+          <name>packageName</name>
+          <type>java.lang.String</type>
+          <required>true</required>
+          <editable>true</editable>
+          <description>Package of the generated code.</description>
+        </parameter>
+        <parameter>
+          <name>outputDirectory</name>
+          <type>java.io.File</type>
+          <required>true</required>
+          <editable>true</editable>
+          <description>Directory of the generated sources.</description>
+        </parameter>
+        <parameter>
+          <name>resourcesDirectory</name>
+          <type>java.io.File</type>
+          <required>true</required>
+          <editable>true</editable>
+          <description>Directory of the generated resources.</description>
+        </parameter>
+        <parameter>
+          <name>repositoryStubDirectory</name>
+          <type>java.io.File</type>
+          <required>false</required>
+          <editable>true</editable>
+          <description>Directory where repository subclasses are created once.</description>
+        </parameter>
+        <parameter>
+          <name>schemas</name>
+          <type>java.util.List</type>
+          <required>false</required>
+          <editable>true</editable>
+          <description>Schemas to read (default public).</description>
+        </parameter>
+        <parameter>
+          <name>defaultSchema</name>
+          <type>java.lang.String</type>
+          <required>false</required>
+          <editable>true</editable>
+          <description>Schema referenced without name (default public).</description>
+        </parameter>
+        <parameter>
+          <name>includes</name>
+          <type>java.util.List</type>
+          <required>false</required>
+          <editable>true</editable>
+          <description>Tables to include (regular expressions).</description>
+        </parameter>
+        <parameter>
+          <name>excludes</name>
+          <type>java.util.List</type>
+          <required>false</required>
+          <editable>true</editable>
+          <description>Tables to exclude (regular expressions).</description>
+        </parameter>
+        <parameter>
+          <name>stripTablePrefixes</name>
+          <type>java.util.List</type>
+          <required>false</required>
+          <editable>true</editable>
+          <description>Table name prefixes stripped for class names.</description>
+        </parameter>
+        <parameter>
+          <name>singularize</name>
+          <type>boolean</type>
+          <required>false</required>
+          <editable>true</editable>
+          <description>Whether entity names are singular.</description>
+        </parameter>
+        <parameter>
+          <name>entityNames</name>
+          <type>java.util.Map</type>
+          <required>false</required>
+          <editable>true</editable>
+          <description>Entity name overrides: table to name.</description>
+        </parameter>
+        <parameter>
+          <name>tableConstants</name>
+          <type>java.util.Map</type>
+          <required>false</required>
+          <editable>true</editable>
+          <description>Table constant overrides: table to constant.</description>
+        </parameter>
+        <parameter>
+          <name>enumMappings</name>
+          <type>java.util.Map</type>
+          <required>false</required>
+          <editable>true</editable>
+          <description>PostgreSQL enums mapped to existing Java enums.</description>
+        </parameter>
+        <parameter>
+          <name>forcedTypes</name>
+          <type>java.util.List</type>
+          <required>false</required>
+          <editable>true</editable>
+          <description>Forced types.</description>
+        </parameter>
+        <parameter>
+          <name>generateEntities</name>
+          <type>boolean</type>
+          <required>false</required>
+          <editable>true</editable>
+          <description>Whether entities are generated.</description>
+        </parameter>
+        <parameter>
+          <name>generateRepositories</name>
+          <type>boolean</type>
+          <required>false</required>
+          <editable>true</editable>
+          <description>Whether repositories are generated.</description>
+        </parameter>
+        <parameter>
+          <name>image</name>
+          <type>java.lang.String</type>
+          <required>false</required>
+          <editable>true</editable>
+          <description>Docker image of the disposable PostgreSQL.</description>
+        </parameter>
+        <parameter>
+          <name>flywayMigrations</name>
+          <type>java.util.List</type>
+          <required>false</required>
+          <editable>true</editable>
+          <description>Directories with Flyway migrations.</description>
+        </parameter>
+        <parameter>
+          <name>sqlScripts</name>
+          <type>java.util.List</type>
+          <required>false</required>
+          <editable>true</editable>
+          <description>SQL scripts or directories applied after Flyway.</description>
+        </parameter>
+        <parameter>
+          <name>jdbcUrl</name>
+          <type>java.lang.String</type>
+          <required>false</required>
+          <editable>true</editable>
+          <description>JDBC URL of an existing database.</description>
+        </parameter>
+        <parameter>
+          <name>user</name>
+          <type>java.lang.String</type>
+          <required>false</required>
+          <editable>true</editable>
+          <description>User of the existing database.</description>
+        </parameter>
+        <parameter>
+          <name>password</name>
+          <type>java.lang.String</type>
+          <required>false</required>
+          <editable>true</editable>
+          <description>Password of the existing database.</description>
+        </parameter>
+        <parameter>
+          <name>skip</name>
+          <type>boolean</type>
+          <required>false</required>
+          <editable>true</editable>
+          <description>Skips the goal.</description>
+        </parameter>
+      </parameters>
+      <configuration>
+        <project implementation="org.apache.maven.project.MavenProject" default-value="${project}"/>
+        <packageName implementation="java.lang.String">${lxrinql.packageName}</packageName>
+        <outputDirectory implementation="java.io.File" default-value="${project.build.directory}/generated-sources/lxrinql"/>
+        <resourcesDirectory implementation="java.io.File" default-value="${project.build.directory}/generated-resources/lxrinql"/>
+        <repositoryStubDirectory implementation="java.io.File" default-value="${project.basedir}/src/main/java"/>
+        <schemas implementation="java.util.List"/>
+        <defaultSchema implementation="java.lang.String"/>
+        <includes implementation="java.util.List"/>
+        <excludes implementation="java.util.List"/>
+        <stripTablePrefixes implementation="java.util.List"/>
+        <singularize implementation="boolean" default-value="true"/>
+        <entityNames implementation="java.util.Map"/>
+        <tableConstants implementation="java.util.Map"/>
+        <enumMappings implementation="java.util.Map"/>
+        <forcedTypes implementation="java.util.List"/>
+        <generateEntities implementation="boolean" default-value="true"/>
+        <generateRepositories implementation="boolean" default-value="true"/>
+        <image implementation="java.lang.String" default-value="postgres:17-alpine"/>
+        <flywayMigrations implementation="java.util.List"/>
+        <sqlScripts implementation="java.util.List"/>
+        <jdbcUrl implementation="java.lang.String">${lxrinql.jdbcUrl}</jdbcUrl>
+        <user implementation="java.lang.String">${lxrinql.user}</user>
+        <password implementation="java.lang.String">${lxrinql.password}</password>
+        <skip implementation="boolean" default-value="false">${lxrinql.skip}</skip>
+      </configuration>
+    </mojo>
+  </mojos>
+</plugin>
