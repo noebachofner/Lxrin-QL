@@ -249,6 +249,41 @@ public final class DataType<T> {
         return new DataType<>(sqlName + "[]", arrayClass, Kind.ARRAY, arrayAccess, sensitive, element);
     }
 
+    /**
+     * Converts a plain JDBC value of the underlying SQL type (for example a
+     * {@code UUID} or a {@code Long} from {@code nextval}) to this type's Java
+     * type, applying mappings such as value objects.
+     */
+    public T fromRaw(Object value) {
+        if (value == null) return null;
+        return access.fromArrayElement(NO_CONTEXT, value);
+    }
+
+    /**
+     * Returns the value's text form on the database side (e.g. the UUID of a
+     * value object, an enum label, an ISO timestamp), used for opaque cursors.
+     */
+    public String encodeText(T value) {
+        return String.valueOf(access.toArrayElement(NO_CONTEXT, value));
+    }
+
+    /** Parses a text form produced by {@link #encodeText(Object)}. */
+    public T decodeText(String text) {
+        return access.fromArrayElement(NO_CONTEXT, text);
+    }
+
+    private static final ValueContext NO_CONTEXT = new ValueContext() {
+        @Override
+        public java.sql.Connection connection() {
+            throw new IllegalStateException("no connection available");
+        }
+
+        @Override
+        public JsonCodec jsonCodec() {
+            throw new IllegalStateException("no JSON codec available");
+        }
+    };
+
     /** Returns {@code true} if {@code value} can be bound with this type. */
     public boolean accepts(Object value) {
         return value == null || javaType.isInstance(value);

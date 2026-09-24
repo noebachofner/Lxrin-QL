@@ -1,52 +1,71 @@
 package ch.lxrin.ql.dsl;
 
-import java.math.BigDecimal;
+import ch.lxrin.ql.types.DataType;
+
 import java.nio.charset.StandardCharsets;
-import java.time.Instant;
-import java.time.LocalDate;
-import java.time.LocalDateTime;
-import java.time.LocalTime;
-import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Base64;
+import java.util.Collections;
 import java.util.List;
-import java.util.UUID;
+import java.util.Objects;
 
 /**
  * The position after the last row of a page: the values of its
  * {@code ORDER BY} fields. {@link #encode()} turns it into an opaque,
- * URL-safe token for REST APIs; {@code seekAfter(token)} reads it back.
+ * URL-safe token for REST APIs; {@code seekAfterCursor(token)} reads it back.
  *
- * <p>Tokens are not signed. They only contain sort-key values and are
- * always sent as bind parameters, so a manipulated token can at most skip
- * rows the caller is allowed to see anyway.</p>
- *
- * @param values the {@code ORDER BY} values of the last row
+ * <p>Values are encoded in their database-side text form through the sort
+ * fields' {@link DataType}s, so value objects, enums and timestamps work.
+ * Tokens are not signed: they only contain sort-key values, which are always
+ * bound as parameters, so a manipulated token can at most change where the
+ * page starts.</p>
  */
-public record Cursor(List<Object> values) {
+public final class Cursor {
 
     private static final char SEPARATOR = '\u001F';
 
-    /** Creates a cursor with an immutable copy of the values. */
-    public Cursor {
-        values = java.util.Collections.unmodifiableList(new ArrayList<>(values));
+    private final List<Object> values;
+    private final List<DataType<?>> types;
+
+    /** Creates a cursor from raw values; it can be passed to {@code seekAfter(cursor)}. */
+    public Cursor(List<Object> values) {
+        this(values, List.of());
+    }
+
+    Cursor(List<Object> values, List<DataType<?>> types) {
+        this.values = Collections.unmodifiableList(new ArrayList<>(values));
+        this.types = List.copyOf(types);
+    }
+
+    /** Returns the {@code ORDER BY} values of the last row. */
+    public List<Object> values() {
+        return values;
     }
 
     /**
      * Encodes the cursor as a URL-safe string.
      *
-     * @throws IllegalStateException if a value has a type without a text form
-     *                               (String, numbers, Boolean, UUID, java.time types and enums are supported)
+     * @throws IllegalStateException if a value has no text form (e.g. JSON)
      */
     public String encode() {
         StringBuilder sb = new StringBuilder();
         for (int i = 0; i < values.size(); i++) {
             if (i > 0) sb.append(SEPARATOR);
-            Object v = values.get(i);
-            if (!supported(v)) throw new IllegalStateException("cannot encode cursor value of type " + v.getClass().getName());
-            sb.append(v instanceof Enum ? ((Enum<?>) v).name() : v.toString());
+            sb.append(encodeValue(i));
         }
         return Base64.getUrlEncoder().withoutPadding().encodeToString(sb.toString().getBytes(StandardCharsets.UTF_8));
+    }
+
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    private String encodeValue(int i) {
+        Object v = values.get(i);
+        try {
+            if (i < types.size()) return ((DataType) types.get(i)).encodeText(v);
+            if (v instanceof Enum) return ((Enum<?>) v).name();
+            return DataTypesOf.forValue(v).encodeText(v);
+        } catch (RuntimeException e) {
+            throw new IllegalStateException("cannot encode cursor value of type " + v.getClass().getName(), e);
+        }
     }
 
     /**
@@ -54,7 +73,6 @@ public record Cursor(List<Object> values) {
      *
      * @throws IllegalArgumentException if the token is malformed
      */
-    @SuppressWarnings({"unchecked", "rawtypes"})
     public static Cursor decode(String token, List<Field<?>> keys) {
         String text;
         try {
@@ -65,38 +83,50 @@ public record Cursor(List<Object> values) {
         String[] parts = text.split(String.valueOf(SEPARATOR), -1);
         if (parts.length != keys.size()) throw new IllegalArgumentException("cursor does not match the ORDER BY fields");
         List<Object> values = new ArrayList<>();
+        List<DataType<?>> types = new ArrayList<>();
         for (int i = 0; i < parts.length; i++) {
-            Class<?> type = keys.get(i).type().javaType();
-            String s = parts[i];
+            DataType<?> type = keys.get(i).type();
             try {
-                Object v;
-                if (type == String.class) v = s;
-                else if (type == Long.class) v = Long.valueOf(s);
-                else if (type == Integer.class) v = Integer.valueOf(s);
-                else if (type == Short.class) v = Short.valueOf(s);
-                else if (type == BigDecimal.class) v = new BigDecimal(s);
-                else if (type == Double.class) v = Double.valueOf(s);
-                else if (type == Float.class) v = Float.valueOf(s);
-                else if (type == Boolean.class) v = Boolean.valueOf(s);
-                else if (type == UUID.class) v = UUID.fromString(s);
-                else if (type == Instant.class) v = Instant.parse(s);
-                else if (type == LocalDate.class) v = LocalDate.parse(s);
-                else if (type == LocalDateTime.class) v = LocalDateTime.parse(s);
-                else if (type == LocalTime.class) v = LocalTime.parse(s);
-                else if (type == OffsetDateTime.class) v = OffsetDateTime.parse(s);
-                else if (type.isEnum()) v = Enum.valueOf((Class) type, s);
-                else throw new IllegalArgumentException("cursor values of type " + type.getName() + " cannot be decoded");
+                Object v = type.javaType().isEnum() && !type.sqlName().contains(".") && type.kind() == ch.lxrin.ql.types.Kind.OTHER
+                        ? decodeEnumOrLabel(type, parts[i]) : type.decodeText(parts[i]);
                 values.add(v);
+                types.add(type);
             } catch (RuntimeException e) {
                 throw new IllegalArgumentException("malformed cursor", e);
             }
         }
-        return new Cursor(values);
+        return new Cursor(values, types);
     }
 
-    private static boolean supported(Object v) {
-        return v instanceof String || v instanceof Number || v instanceof Boolean || v instanceof UUID
-                || v instanceof Instant || v instanceof LocalDate || v instanceof LocalDateTime || v instanceof LocalTime
-                || v instanceof OffsetDateTime || v instanceof Enum;
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    private static Object decodeEnumOrLabel(DataType<?> type, String text) {
+        try {
+            return type.decodeText(text);
+        } catch (RuntimeException notALabel) {
+            return Enum.valueOf((Class) type.javaType(), text);
+        }
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        return o instanceof Cursor && values.equals(((Cursor) o).values);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(values);
+    }
+
+    @Override
+    public String toString() {
+        return "Cursor" + values;
+    }
+
+    /** Default types for cursors created from raw values. */
+    private static final class DataTypesOf {
+        @SuppressWarnings("unchecked")
+        static DataType<Object> forValue(Object v) {
+            return (DataType<Object>) ch.lxrin.ql.types.SqlTypes.forClass(v.getClass());
+        }
     }
 }

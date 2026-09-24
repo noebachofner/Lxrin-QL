@@ -464,8 +464,12 @@ public abstract class AbstractSelect<R, S extends AbstractSelect<R, S>> implemen
         if (!raw.isEmpty() && raw.size() >= limit) {
             Object[] last = raw.get(raw.size() - 1);
             List<Object> keys = new ArrayList<>();
-            for (int i : keyIndexes) keys.add(last[i]);
-            next = new Cursor(keys);
+            List<ch.lxrin.ql.types.DataType<?>> keyTypes = new ArrayList<>();
+            for (int i = 0; i < keyIndexes.length; i++) {
+                keys.add(last[keyIndexes[i]]);
+                keyTypes.add(statement.orderBy().get(i).field().type());
+            }
+            next = new Cursor(keys, keyTypes);
         }
         return new Page<>(items, next);
     }

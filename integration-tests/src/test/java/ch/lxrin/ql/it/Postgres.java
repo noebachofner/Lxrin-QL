@@ -38,10 +38,15 @@ public final class Postgres {
         }
     }
 
+    /** Recreates the generated test schema ({@code ch.lxrin.ql.it.db}) with the Flyway migrations. */
+    public static void migrateItSchema() {
+        execute("DROP SCHEMA public CASCADE; CREATE SCHEMA public;");
+        org.flywaydb.core.Flyway.configure().dataSource(dataSource()).locations("classpath:db/migration").load().migrate();
+    }
+
     /** Creates the schema of {@code ch.lxrin.ql.TestSchema} from scratch. */
     public static void resetTestSchema() {
-        execute("DROP TABLE IF EXISTS audit_log, orders, users CASCADE;\n"
-                + "DROP TYPE IF EXISTS role;\n"
+        execute("DROP SCHEMA public CASCADE; CREATE SCHEMA public;\n"
                 + "CREATE TYPE role AS ENUM ('ADMIN', 'USER');\n"
                 + "CREATE TABLE users (id uuid CONSTRAINT users_pkey PRIMARY KEY, name text NOT NULL, email text NOT NULL,"
                 + " role role NOT NULL DEFAULT 'USER', active boolean NOT NULL DEFAULT true,"

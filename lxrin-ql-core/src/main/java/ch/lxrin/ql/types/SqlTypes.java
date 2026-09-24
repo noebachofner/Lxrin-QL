@@ -336,7 +336,13 @@ public final class SqlTypes {
      */
     public static <E extends Enum<E>> DataType<E> pgEnum(String sqlName, Class<E> enumType, Function<E, String> label) {
         Map<String, E> byLabel = new java.util.HashMap<>();
-        for (E e : enumType.getEnumConstants()) byLabel.put(label.apply(e), e);
+        for (E e : enumType.getEnumConstants()) {
+            try {
+                byLabel.put(label.apply(e), e);
+            } catch (IllegalArgumentException noLabel) {
+                // a Java constant without a database label cannot be read, and fails when written
+            }
+        }
         return DataType.of(sqlName, enumType, Kind.OTHER, new SimpleAccess<>() {
             @Override
             public void set(ValueContext ctx, PreparedStatement ps, int index, E value) throws SQLException {
@@ -366,6 +372,38 @@ public final class SqlTypes {
                 return Literals.quote(label.apply(value)) + "::" + sqlName;
             }
         });
+    }
+
+    /**
+     * A PostgreSQL enum type mapped to an existing Java enum whose constant
+     * names match the labels ignoring case and separators (e.g. label
+     * {@code in-progress} ↔ constant {@code IN_PROGRESS}).
+     *
+     * @param labels the labels of the PostgreSQL type
+     * @throws IllegalArgumentException if a label has no matching constant
+     */
+    public static <E extends Enum<E>> DataType<E> pgEnumByName(String sqlName, Class<E> enumType, String... labels) {
+        Map<E, String> labelOf = new java.util.EnumMap<>(enumType);
+        for (String label : labels) {
+            String normalized = label.replaceAll("[^A-Za-z0-9]", "_").toUpperCase(java.util.Locale.ROOT);
+            E match = null;
+            for (E e : enumType.getEnumConstants()) if (e.name().equalsIgnoreCase(normalized)) match = e;
+            if (match == null) throw new IllegalArgumentException("no constant of " + enumType.getName() + " for label " + label);
+            labelOf.put(match, label);
+        }
+        return pgEnum(sqlName, enumType, e -> {
+            String label = labelOf.get(e);
+            if (label == null) throw new IllegalArgumentException(e + " has no label in PostgreSQL type " + sqlName);
+            return label;
+        });
+    }
+
+    /**
+     * Any other PostgreSQL type (e.g. {@code inet}, {@code money}, {@code xml})
+     * in its text form, bound as an untyped value.
+     */
+    public static DataType<String> otherAsText(String sqlName) {
+        return other(sqlName, Kind.OTHER);
     }
 
     /** An enum stored by its constant name in a text column. */
