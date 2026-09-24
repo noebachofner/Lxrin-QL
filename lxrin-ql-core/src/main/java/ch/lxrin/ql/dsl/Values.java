@@ -13,7 +13,7 @@ import java.util.UUID;
  * Bind parameters and inline literals as fields. All methods are also
  * available through {@code import static ch.lxrin.ql.dsl.Dsl.*}.
  */
-public class Values {
+public class Values extends ArityStatics {
 
     /** Static members only; extended by {@link Dsl}. */
     protected Values() {}

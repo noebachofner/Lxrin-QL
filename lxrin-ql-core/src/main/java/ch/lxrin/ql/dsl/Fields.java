@@ -70,6 +70,18 @@ public final class Fields {
         return new ConditionExpr(body, null, atomic);
     }
 
+    /**
+     * Returns the expression of a field without its alias, for places where an
+     * alias cannot be referenced (e.g. {@code WHERE}).
+     */
+    public static QueryPart unaliased(Field<?> field) {
+        if (field instanceof AbstractField && ((AbstractField<?>) field).alias != null) {
+            QueryPart body = ((AbstractField<?>) field).body;
+            return ctx -> ctx.nested(body);
+        }
+        return field;
+    }
+
     /** Returns {@code field AS alias}. */
     @SuppressWarnings({"unchecked", "rawtypes"})
     static <T> Field<T> alias(Field<T> field, String alias) {
@@ -175,10 +187,18 @@ public final class Fields {
 
     static final class ConditionExpr extends AbstractField<Boolean> implements Condition {
         private final boolean atomic;
+        final String junction;
+        final java.util.List<Condition> parts;
 
         ConditionExpr(QueryPart body, String alias, boolean atomic) {
+            this(body, alias, atomic, null, null);
+        }
+
+        ConditionExpr(QueryPart body, String alias, boolean atomic, String junction, java.util.List<Condition> parts) {
             super(SqlTypes.BOOL, body, alias);
             this.atomic = atomic;
+            this.junction = junction;
+            this.parts = parts;
         }
 
         boolean atomic() {

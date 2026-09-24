@@ -119,11 +119,18 @@ final class Ops {
     static Condition junction(String keyword, List<? extends Condition> conditions) {
         List<Condition> parts = new ArrayList<>();
         for (Condition c : conditions) {
-            if (c != null && c != Fields.NO_CONDITION) parts.add(c);
+            if (c == null || c == Fields.NO_CONDITION) continue;
+            if (c instanceof Fields.ConditionExpr && keyword.equals(((Fields.ConditionExpr) c).junction)
+                    && ((Fields.ConditionExpr) c).name() == null) {
+                parts.addAll(((Fields.ConditionExpr) c).parts);
+            } else {
+                parts.add(c);
+            }
         }
         if (parts.isEmpty()) return Fields.NO_CONDITION;
         if (parts.size() == 1) return parts.get(0);
         String separator = " " + keyword + " ";
-        return Fields.condition(ctx -> ctx.append('(').visitAll(parts, separator).append(')'), true);
+        List<Condition> frozen = List.copyOf(parts);
+        return new Fields.ConditionExpr(ctx -> ctx.append('(').visitAll(frozen, separator).append(')'), null, true, keyword, frozen);
     }
 }
