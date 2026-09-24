@@ -141,7 +141,7 @@ class SelectTest {
 
     @Test
     void setOperations() {
-        assertRender("SELECT users.email FROM users UNION (SELECT users.name FROM users) ORDER BY users.email ASC",
+        assertRender("SELECT users.email FROM users UNION (SELECT users.name FROM users) ORDER BY email ASC",
                 select(USERS.EMAIL).from(USERS).union(select(USERS.NAME).from(USERS)).orderBy(USERS.EMAIL.asc()));
         assertRender("SELECT users.email FROM users UNION ALL (SELECT users.email FROM users) INTERSECT (SELECT users.email FROM users) "
                         + "INTERSECT ALL (SELECT users.email FROM users) EXCEPT (SELECT users.email FROM users) EXCEPT ALL (SELECT users.email FROM users)",

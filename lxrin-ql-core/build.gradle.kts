@@ -1,15 +1,23 @@
 plugins {
     id("lxrin.java-conventions")
+    `java-test-fixtures`
     id("lxrin.publish-conventions")
 }
 
 description = "LxrinQL core: a strongly typed query language and data access layer for PostgreSQL. No runtime dependencies."
 
 dependencies {
+    testFixturesImplementation(platform(libs.junit.bom))
+    testFixturesImplementation(libs.junit.jupiter.api)
     testImplementation(platform(libs.junit.bom))
     testImplementation(libs.junit.jupiter)
     testRuntimeOnly(libs.junit.launcher)
 }
+
+// Test fixtures (hand-written tables, recording executor) are shared with the integration tests, not published.
+val javaComponent = components["java"] as AdhocComponentWithVariants
+javaComponent.withVariantsFromConfiguration(configurations["testFixturesApiElements"]) { skip() }
+javaComponent.withVariantsFromConfiguration(configurations["testFixturesRuntimeElements"]) { skip() }
 
 tasks.jar {
     manifest {

@@ -37,3 +37,8 @@ tasks.withType<Jar>().configureEach {
         )
     }
 }
+
+// javadoc runs with strict doclint on every build, not only when publishing
+tasks.named("check") {
+    dependsOn(tasks.withType<Javadoc>())
+}

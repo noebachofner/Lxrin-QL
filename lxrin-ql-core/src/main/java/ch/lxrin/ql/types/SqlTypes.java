@@ -248,6 +248,19 @@ public final class SqlTypes {
     /** {@code json} ↔ JSON text. */
     public static final DataType<String> JSON = other("json", Kind.JSON);
 
+    /** {@code daterange} ↔ its text form, e.g. {@code [2024-01-01,2024-02-01)}. */
+    public static final DataType<String> DATERANGE = other("daterange", Kind.OTHER);
+    /** {@code tsrange} ↔ its text form. */
+    public static final DataType<String> TSRANGE = other("tsrange", Kind.OTHER);
+    /** {@code tstzrange} ↔ its text form. */
+    public static final DataType<String> TSTZRANGE = other("tstzrange", Kind.OTHER);
+    /** {@code int4range} ↔ its text form. */
+    public static final DataType<String> INT4RANGE = other("int4range", Kind.OTHER);
+    /** {@code int8range} ↔ its text form. */
+    public static final DataType<String> INT8RANGE = other("int8range", Kind.OTHER);
+    /** {@code numrange} ↔ its text form. */
+    public static final DataType<String> NUMRANGE = other("numrange", Kind.OTHER);
+
     /** {@code tsvector} ↔ its text form. */
     public static final DataType<String> TSVECTOR = other("tsvector", Kind.OTHER);
     /** {@code tsquery} ↔ its text form. */

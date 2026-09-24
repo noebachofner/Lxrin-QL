@@ -234,7 +234,18 @@ public final class SelectStatement implements Statement {
             op.query().render(ctx);
             ctx.append(')');
         }
-        if (!orderBy.isEmpty()) ctx.append(" ORDER BY ").visitAll(orderBy, ", ");
+        if (!orderBy.isEmpty()) {
+            ctx.append(" ORDER BY ");
+            if (setOperations.isEmpty()) {
+                ctx.visitAll(orderBy, ", ");
+            } else {
+                // after UNION/INTERSECT/EXCEPT only output column names may be referenced
+                for (int i = 0; i < orderBy.size(); i++) {
+                    if (i > 0) ctx.append(", ");
+                    ctx.withQualification(false, orderBy.get(i));
+                }
+            }
+        }
         if (withTies) {
             if (limit == null) throw new IllegalStateException("WITH TIES needs a limit");
             if (orderBy.isEmpty()) throw new IllegalStateException("WITH TIES needs ORDER BY");

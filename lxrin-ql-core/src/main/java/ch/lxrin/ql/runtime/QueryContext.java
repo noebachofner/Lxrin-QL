@@ -260,6 +260,14 @@ public final class QueryContext extends ArityContextBase {
     }
 
     /** Runs {@code work} in a transaction with the given propagation. */
+    public void transaction(Propagation propagation, Runnable work) {
+        transactions.inTransaction(propagation, () -> {
+            work.run();
+            return null;
+        });
+    }
+
+    /** Runs {@code work} in a transaction with the given propagation and returns its result. */
     public <T> T transaction(Propagation propagation, Supplier<T> work) {
         return transactions.inTransaction(propagation, work);
     }

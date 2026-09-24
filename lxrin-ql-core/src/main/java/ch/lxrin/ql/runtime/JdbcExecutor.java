@@ -51,7 +51,12 @@ public class JdbcExecutor implements SqlExecutor {
         try (PreparedStatement ps = context.connection().prepareStatement(sql.sql())) {
             bindAll(context, ps, sql.binds());
             if (returningTypes.isEmpty()) {
-                return new UpdateResult(ps.executeLargeUpdate(), List.of());
+                if (!ps.execute()) return new UpdateResult(ps.getLargeUpdateCount(), List.of());
+                long rows = 0;
+                try (ResultSet rs = ps.getResultSet()) {
+                    while (rs.next()) rows++;
+                }
+                return new UpdateResult(rows, List.of());
             }
             List<Object[]> rows = new ArrayList<>();
             try (ResultSet rs = ps.executeQuery()) {

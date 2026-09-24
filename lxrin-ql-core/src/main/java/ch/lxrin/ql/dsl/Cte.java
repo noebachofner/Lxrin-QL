@@ -68,6 +68,16 @@ public final class Cte extends Table<Row> {
         return declare(columnName, type);
     }
 
+    /** Declares a numeric column of a recursive CTE (so arithmetic such as {@code n.plus(1)} is available). */
+    public <N extends Number> ch.lxrin.ql.schema.NumberColumn<N> declareNumber(String columnName, DataType<N> type) {
+        return (ch.lxrin.ql.schema.NumberColumn<N>) declareColumn(columnName, type);
+    }
+
+    /** Declares a text column of a recursive CTE. */
+    public ch.lxrin.ql.schema.StringColumn declareString(String columnName, DataType<String> type) {
+        return (ch.lxrin.ql.schema.StringColumn) declareColumn(columnName, type);
+    }
+
     /** Sets the query of a recursive CTE. */
     public Cte as(CteSource source) {
         if (holder.body != null) throw new IllegalStateException("the CTE query is already set");
