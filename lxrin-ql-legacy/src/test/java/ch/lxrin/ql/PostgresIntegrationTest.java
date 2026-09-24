@@ -10,7 +10,7 @@ import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
+import org.testcontainers.postgresql.PostgreSQLContainer;
 
 import java.math.BigDecimal;
 import java.sql.Connection;
@@ -27,11 +27,9 @@ import static org.junit.jupiter.api.Assertions.*;
 /**
  * Runs generated SQL against a real PostgreSQL database.
  *
- * <p>Enabled only if {@code LXRIN_QL_PG_URL} is set, e.g.
- * {@code jdbc:postgresql://localhost:5432/test?user=postgres&password=secret}.
- * The test creates and drops its own tables.</p>
+ * <p>Starts PostgreSQL with Testcontainers (Docker required). The test
+ * creates and drops its own tables.</p>
  */
-@EnabledIfEnvironmentVariable(named = "LXRIN_QL_PG_URL", matches = ".+")
 class PostgresIntegrationTest {
 
     static class Customer extends TableDef {
@@ -71,6 +69,7 @@ class PostgresIntegrationTest {
         public void setTags(String[] tags) { this.tags = tags; }
     }
 
+    private static final PostgreSQLContainer POSTGRES = new PostgreSQLContainer("postgres:17-alpine");
     private static Connection connection;
     private static SqlExecutor db;
     private final Customer c = new Customer();
@@ -78,7 +77,8 @@ class PostgresIntegrationTest {
 
     @BeforeAll
     static void connect() throws Exception {
-        connection = DriverManager.getConnection(System.getenv("LXRIN_QL_PG_URL"));
+        POSTGRES.start();
+        connection = DriverManager.getConnection(POSTGRES.getJdbcUrl(), POSTGRES.getUsername(), POSTGRES.getPassword());
         db = JdbcSqlExecutor.forConnection(connection);
         setDefaultExecutor(db);
     }
@@ -90,6 +90,7 @@ class PostgresIntegrationTest {
         }
         setDefaultExecutor(null);
         connection.close();
+        POSTGRES.stop();
     }
 
     @BeforeEach
