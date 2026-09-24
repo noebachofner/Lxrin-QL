@@ -1,15 +1,13 @@
 // The same artifact is built by Maven (pom.xml).
 plugins {
     `java-library`
-    `maven-publish`
+    alias(libs.plugins.maven.publish)
 }
 
 description = "Fluent, type-safe SQL query builder for Java with broad PostgreSQL coverage. No runtime dependencies."
 
 java {
     toolchain.languageVersion.set(JavaLanguageVersion.of(17))
-    withSourcesJar()
-    withJavadocJar()
 }
 
 dependencies {
@@ -45,21 +43,43 @@ tasks.jar {
     }
 }
 
-publishing {
-    publications {
-        create<MavenPublication>("maven") {
-            from(components["java"])
-            pom {
-                name.set("LxrinQL")
-                description.set(project.description)
-                url.set("https://github.com/noebachofner/lxrin_ql")
-                licenses {
-                    license {
-                        name.set("MIT License")
-                        url.set("https://opensource.org/licenses/MIT")
-                    }
-                }
+// Publishes to Maven Central (central.sonatype.com) together with sources and javadoc jars.
+// Credentials and the GPG key come from ~/.gradle/gradle.properties or ORG_GRADLE_PROJECT_* env vars.
+mavenPublishing {
+    publishToMavenCentral(automaticRelease = true)
+    // Maven Central requires signatures. Skipped without a key so publishToMavenLocal keeps working.
+    if (providers.gradleProperty("signingInMemoryKey").isPresent ||
+        providers.gradleProperty("signing.keyId").isPresent
+    ) {
+        signAllPublications()
+    }
+
+    coordinates(project.group.toString(), "lxrin-ql", project.version.toString())
+
+    pom {
+        name.set("LxrinQL")
+        description.set(project.description)
+        inceptionYear.set("2024")
+        url.set("https://github.com/noebachofner/Lxrin-QL")
+        licenses {
+            license {
+                name.set("MIT License")
+                url.set("https://opensource.org/licenses/MIT")
+                distribution.set("repo")
             }
+        }
+        developers {
+            developer {
+                id.set("noebachofner")
+                name.set("Noé Bachofner")
+                email.set("noebachofner@lxrin.ch")
+                url.set("https://github.com/noebachofner")
+            }
+        }
+        scm {
+            url.set("https://github.com/noebachofner/Lxrin-QL")
+            connection.set("scm:git:https://github.com/noebachofner/Lxrin-QL.git")
+            developerConnection.set("scm:git:ssh://git@github.com/noebachofner/Lxrin-QL.git")
         }
     }
 }

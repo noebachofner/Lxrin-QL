@@ -13,7 +13,7 @@
 
     <name>LxrinQL</name>
     <description>Fluent, type-safe SQL query builder for Java with broad PostgreSQL coverage. No runtime dependencies.</description>
-    <url>https://github.com/noebachofner/lxrin_ql</url>
+    <url>https://github.com/noebachofner/Lxrin-QL</url>
 
     <licenses>
         <license>
@@ -21,6 +21,21 @@
             <url>https://opensource.org/licenses/MIT</url>
         </license>
     </licenses>
+
+    <developers>
+        <developer>
+            <id>noebachofner</id>
+            <name>Noé Bachofner</name>
+            <email>noebachofner@lxrin.ch</email>
+            <url>https://github.com/noebachofner</url>
+        </developer>
+    </developers>
+
+    <scm>
+        <url>https://github.com/noebachofner/Lxrin-QL</url>
+        <connection>scm:git:https://github.com/noebachofner/Lxrin-QL.git</connection>
+        <developerConnection>scm:git:ssh://git@github.com/noebachofner/Lxrin-QL.git</developerConnection>
+    </scm>
 
     <properties>
         <maven.compiler.release>17</maven.compiler.release>

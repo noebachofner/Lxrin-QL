@@ -51,20 +51,12 @@ dependencies** and works with any framework.
 
 LxrinQL requires **Java 17+**. Coordinates: `ch.lxrin:lxrin-ql:2.0.0`.
 
-The library is not on Maven Central yet. Install it into your local Maven
-repository once, and it is then available to both Gradle and Maven projects:
-
-```bash
-git clone https://github.com/noebachofner/lxrin_ql.git
-cd lxrin_ql
-./gradlew publishToMavenLocal      # or: mvn install
-```
+The library is published on Maven Central, so no extra repository is needed:
 
 **Gradle (Kotlin DSL)**
 
 ```kotlin
 repositories {
-    mavenLocal()
     mavenCentral()
 }
 
@@ -77,7 +69,7 @@ dependencies {
 **Gradle (Groovy DSL)**
 
 ```groovy
-repositories { mavenLocal(); mavenCentral() }
+repositories { mavenCentral() }
 dependencies {
     implementation 'ch.lxrin:lxrin-ql:2.0.0'
 }
@@ -94,7 +86,7 @@ dependencies {
 ```
 
 **Gradle composite build (no publishing).** If the sources sit next to your
-project, add `includeBuild("../lxrin_ql")` to your `settings.gradle.kts` and
+project, add `includeBuild("../Lxrin-QL")` to your `settings.gradle.kts` and
 keep the dependency above. Gradle substitutes it with the local build.
 
 ---
@@ -168,6 +160,7 @@ statement as SQL, so it is never treated as data.
 | [Function reference](docs/functions.md) | The full PostgreSQL function catalog, by category |
 | [Execution & mapping](docs/execution.md) | Parameters, `Binds`, executors, transactions, result mapping, testing, custom adapters |
 | [Examples](docs/examples.md) | Real-world recipes: search forms, paging, reporting, upserts, job queues, JSON, full-text search |
+| [Releasing](docs/releasing.md) | Publishing a new version to Maven Central |
 | [Changelog](CHANGELOG.md) | Release notes and the migration guide from 1.x |
 
 ---

@@ -10,3 +10,6 @@ junit-jupiter = { module = "org.junit.jupiter:junit-jupiter" }
 junit-launcher = { module = "org.junit.platform:junit-platform-launcher" }
 mockito-core = { module = "org.mockito:mockito-core", version.ref = "mockito" }
 postgresql = { module = "org.postgresql:postgresql", version.ref = "postgresql" }
+
+[plugins]
+maven-publish = { id = "com.vanniktech.maven.publish", version = "0.37.0" }

@@ -12,21 +12,12 @@ This guide takes you from an empty project to your first queries.
 
 ## 2. Add the dependency
 
-Install the library into your local Maven repository:
-
-```bash
-git clone https://github.com/noebachofner/lxrin_ql.git
-cd lxrin_ql
-./gradlew publishToMavenLocal      # or: mvn install
-```
-
-Then add it to your project.
+LxrinQL is published on Maven Central. Add it to your project:
 
 **Gradle (Kotlin DSL)**
 
 ```kotlin
 repositories {
-    mavenLocal()
     mavenCentral()
 }
 
