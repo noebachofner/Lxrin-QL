@@ -260,6 +260,17 @@ public final class DataType<T> {
     }
 
     /**
+     * Converts a value to the plain JDBC value of the underlying SQL type (the
+     * inverse of {@link #fromRaw(Object)}), e.g. a value object to its UUID.
+     * Useful to copy values between columns of different Java types.
+     */
+    public Object toRaw(T value) {
+        if (value == null) return null;
+        if (elementType != null) return value;
+        return access.toArrayElement(NO_CONTEXT, value);
+    }
+
+    /**
      * Returns the value's text form on the database side (e.g. the UUID of a
      * value object, an enum label, an ISO timestamp), used for opaque cursors.
      */

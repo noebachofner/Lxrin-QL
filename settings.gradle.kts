@@ -21,6 +21,7 @@ include(
     "lxrin-ql-gradle-plugin",
     "lxrin-ql-maven-plugin",
     "lxrin-ql-spring",
+    "lxrin-ql-test",
     "lxrin-ql-legacy",
     "integration-tests",
 )
