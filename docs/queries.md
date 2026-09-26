@@ -1,233 +1,245 @@
 # Queries
 
-All examples assume `import static ch.lxrin.ql.LxrinQL.*;` and these tables:
+All examples assume these imports and the generated tables `USERS` (`app_user`)
+and `ORDERS` (`orders`, with the foreign key `FK_USER` to `app_user`):
 
 ```java
-PersonTable p = new PersonTable();   // PERSON p   (PERSON_NR, FIRST_NAME, LAST_NAME, STATUS, AGE, ...)
-OrderTable  o = new OrderTable();    // ORDERS o   (ORDER_ID, PERSON_NR, TOTAL, STATUS, CREATED_AT, DATA)
+import static ch.lxrin.ql.dsl.Dsl.*;
+import static com.example.db.Tables.*;
 ```
 
-Every builder can show its SQL with `buildSql()` and its SQL plus parameters
-with `build()`. Clauses can be added in any order, because the SQL is always
-rendered in the correct order.
+Statements created with `Dsl.*` run on `QueryContext.getDefault()`. Statements
+created with `ctx.select(..)`, `ctx.insertInto(..)`, … run on `ctx`. Everything else
+is identical. Every builder can be rendered without running it: `render()` returns
+the SQL with `?` placeholders and the typed binds, and `toString()` returns the same
+as text.
 
-- [SELECT](#select)
-  - [Select list](#select-list) · [FROM](#from) · [Joins](#joins) · [WHERE](#where)
-  - [GROUP BY / HAVING](#group-by--having) · [Window functions](#window-functions)
-  - [ORDER BY / LIMIT / paging](#order-by--limit--paging) · [Set operations](#set-operations)
-  - [Sub-queries](#sub-queries) · [CTEs](#common-table-expressions-with) · [Row locking](#row-locking)
-- [INSERT](#insert) · [Upsert](#upsert-on-conflict) · [UPDATE](#update) · [DELETE](#delete) · [TRUNCATE](#truncate)
-- [RETURNING](#returning) · [Data-modifying CTEs](#data-modifying-ctes)
+- [SELECT](#select): [select list](#select-list-and-results) · [FROM and joins](#from-and-joins) · [WHERE](#where)
+  · [grouping](#group-by-and-having) · [windows](#window-functions) · [ordering and paging](#order-by-limit-and-offset)
+  · [keyset pagination](#keyset-pagination) · [set operations](#set-operations) · [sub-queries](#sub-queries)
+  · [CTEs](#common-table-expressions) · [derived tables and LATERAL](#derived-tables-lateral-and-set-returning-functions)
+  · [locking](#row-locking)
+- [INSERT](#insert) · [upserts](#upserts) · [UPDATE](#update) · [DELETE](#delete) · [TRUNCATE](#truncate) · [RETURNING](#returning)
 
 ---
 
 ## SELECT
 
-### Starting a query
+### Select list and results
 
-| Factory | Result type |
+| Start | Rows |
 |---|---|
-| `select(items…)` | `SelectQuery<Object[]>` |
-| `select(Type.class, items…)` | `SelectQuery<Type>` |
-| `selectDistinct(items…)` | `SelectQuery<Object[]>` with `DISTINCT` |
-| `selectFrom(table)` | `SELECT * FROM table` |
-| `createContribution(Type.class)` / `query(Type.class)` | empty `SelectQuery<Type>` |
-
-### Select list
-
-```java
-select(p.personNr, p.lastName)                          // columns
-select(p.columns())                                     // all declared columns
-select(p.all())                                         // p.*
-select(upper(p.lastName).as("name"))                    // expression with alias
-select(as("p.FIRST_NAME || ' ' || p.LAST_NAME", "fullName"))  // SQL fragment with alias
-select(count().as("cnt"), max(o.total))
-select(caseWhen(ge(p.age, 18), inline("adult")).otherwise(inline("minor")).as("ageGroup"))
-select(select(count()).from(o).where(eq(o.personNr, p.personNr)).as("orderCount"))  // scalar sub-query
-```
-
-`.select(..)` can be called several times, and each call appends. A `String`
-item is a SQL fragment. Aliases come from `.as(..)` or from a column's Java
-alias, and the result mapper uses these names.
+| `select(f1)` | the values of `f1`, e.g. `List<String>` |
+| `select(f1, …, f16)` | typed tuples `Row2<T1, T2>` … `Row16`; `fetch(Record::new)` maps them |
+| `select(List<Field<?>>)` | `Row`, with typed access `row.get(USERS.NAME)` (for dynamic select lists) |
+| `selectFrom(USERS)` | the generated `UserRow` records |
+| `selectCount()` | `count(*)` as `Long` |
+| `selectOne()` | `1`, for `exists(..)` |
 
 ```java
-.distinct()                          // SELECT DISTINCT ...
-.distinctOn(o.personNr)              // SELECT DISTINCT ON (o.PERSON_NR) ...  – first row per group
+List<String> names = select(USERS.NAME).from(USERS).fetch();
+
+List<Row2<UUID, String>> pairs = select(USERS.ID, USERS.NAME).from(USERS).fetch();
+
+record UserSummary(UUID id, String name, String email) {}
+List<UserSummary> summaries = select(USERS.ID, USERS.NAME, USERS.EMAIL).from(USERS).fetch(UserSummary::new);
+
+Row row = select(List.of(USERS.ID, USERS.NAME)).from(USERS).fetchFirst().orElseThrow();
+String name = row.get(USERS.NAME);
 ```
 
-A query without `FROM` is valid: `select(now(), version()).single()`.
+Aliases: `upper(USERS.NAME).as("n")` renders `upper(app_user.name) AS n` in the
+select list and `n` elsewhere (for example in `ORDER BY`).
 
-### FROM
+`distinct()` renders `SELECT DISTINCT`. `distinctOn(ORDERS.USER_ID)` gives the first
+row of each group; add a matching `ORDER BY`.
+
+### FROM and joins
 
 ```java
-.from(p)                                         // PERSON p
-.from(p, o)                                      // PERSON p, ORDERS o
-.from("PERSON p")                                // SQL fragment
-.from(subQuery.as("x"))                          // derived table: (SELECT ...) AS x
-.from(generateSeries(inline(1), inline(10)).as("n"))   // set-returning function
-.from(unnest(val(ids)).as("t(id)"))
-.from(p, lateral(subQuery.as("x")))
+select(USERS.NAME, ORDERS.TOTAL)
+    .from(USERS)
+    .join(ORDERS).on(ORDERS.USER_ID.eq(USERS.ID))           // JOIN … ON …
+    .leftJoin(ORDERS).onKey(ORDERS.FK_USER)                   // along a generated foreign key
+    .rightJoin(t).on(..)  .fullJoin(t).on(..)
+    .join(t).using(t.ID)                                      // JOIN t USING (id)
+    .crossJoin(t)  .naturalJoin(t)
 ```
 
-### Joins
+`onKey(..)` works in both directions: from the referencing table to the referenced
+one and the other way round. Aliases are respected. For self-joins, alias the table:
 
 ```java
-.join(o, eq(o.personNr, p.personNr))                 // JOIN ORDERS o ON ...
-.innerJoin(o, eq(o.personNr, p.personNr))            // INNER JOIN
-.leftJoin(o, eq(o.personNr, p.personNr), eq(o.status, val("PAID")))   // several ON conditions → AND
-.rightJoin(o, ...)
-.fullJoin(o, ...)
-.crossJoin(o)
-.naturalJoin("ADDRESS")
-.joinUsing("ADDRESS a", "PERSON_NR")                 // JOIN ADDRESS a USING (PERSON_NR)
-.leftJoinUsing("ADDRESS a", "PERSON_NR")
-.leftJoin(lateral(lastOrder.as("lo")))               // LEFT JOIN LATERAL (...) AS lo ON TRUE
-.join("LEFT JOIN ADDRESS a ON a.PERSON_NR = p.PERSON_NR")   // verbatim join clause
+UserTable manager = USERS.as("m");
+select(USERS.NAME, manager.NAME).from(USERS).join(manager).on(manager.ID.eq(USERS.MANAGER_ID))
 ```
-
-A join without an `ON` condition renders `ON TRUE`, which is the usual form
-for `LATERAL` joins. For a self-join, create the table with another alias:
-`PersonTable manager = new PersonTable("m")`.
 
 ### WHERE
 
-```java
-.where(eq(p.status, val("ACTIVE")), ge(p.age, 18))           // … AND …
-.where(eq(p.status, val("A")), or(), eq(p.status, val("B")))  // explicit tokens are kept
-.where(or(eq(p.status, val("A")), isNull(p.status)))         // grouped: (… OR …)
-.where(p.age.between(18, 65).and(p.lastName.ilike(val("A%"))))   // fluent style
-.whereIf(filter.status() != null, eq(p.status, val(filter.status())))
-.whereIf(name != null, () -> ilike(p.lastName, val(name + "%")))  // lazy
-.where("p.DELETED_AT IS NULL")                                // SQL fragment
-```
-
-Joining rules:
-
-- Within one `where(..)` call, two adjacent conditions without an `and()` or
-  `or()` token between them are joined with `AND`.
-- Several `where(..)` calls are joined with `AND`. A call that contains an
-  `or()` token is wrapped in parentheses, so
-  `.where(a, or(), b).where(c)` renders `(a OR b) AND c`.
-- `and(c1, c2, …)` / `or(c1, c2, …)` skip `null` entries. That is useful for
-  optional filters: `and(nameFilter, statusFilter)`.
-
-The complete list of conditions is in [Expressions & conditions](expressions.md#conditions).
-
-### GROUP BY / HAVING
+Every `where(..)` argument and every further `where(..)` call is joined with `AND`:
 
 ```java
-select(o.personNr, count().as("orders"), sum(o.total).as("revenue"))
-    .from(o)
-    .groupBy(o.personNr)
-    .having(gt(sum(o.total), 1000))
-
-.groupBy(rollup(o.status, o.personNr))                 // GROUP BY ROLLUP (...)
-.groupBy(cube(o.status, dateTrunc("month", o.createdAt)))
-.groupBy(groupingSets(groupingSet(o.status), groupingSet(o.personNr), groupingSet()))
-select(o.status, grouping(o.status).as("isTotal"), sum(o.total))   // GROUPING(...)
+.where(USERS.ROLE.eq(Role.ADMIN), USERS.DELETED_AT.isNull())
+.where(USERS.NAME.startsWith("A").or(USERS.EMAIL.endsWith("@example.org")))
+.whereIf(filter.name() != null, () -> USERS.NAME.containsIgnoreCase(filter.name()))
 ```
 
-Aggregate modifiers:
+Conditions are listed in [Fields and types](expressions.md#conditions).
+`Condition.noCondition()` is the neutral start value for conditions built in loops.
+
+### GROUP BY and HAVING
 
 ```java
-count().filter(eq(o.status, val("PAID")))             // count(*) FILTER (WHERE ...)
-countDistinct(o.personNr)                             // count(DISTINCT ...)
-sum(o.total).distinct()
-stringAgg(p.lastName, ", ").orderBy(p.lastName.asc()) // string_agg(... ORDER BY ...)
-percentileCont(0.5).withinGroup(o.total.asc())        // median
-mode().withinGroup(o.status)
+select(ORDERS.USER_ID, count(), sum(ORDERS.TOTAL).filter(ORDERS.STATUS.eq("PAID")))
+    .from(ORDERS)
+    .groupBy(ORDERS.USER_ID)
+    .having(sum(ORDERS.TOTAL).gt(new BigDecimal("1000")))
+
+.groupBy(rollup(ORDERS.STATUS, ORDERS.USER_ID))
+.groupBy(cube(ORDERS.STATUS, ORDERS.USER_ID))
+.groupBy(groupingSets(groupingSet(ORDERS.STATUS), groupingSet(ORDERS.USER_ID), groupingSet()))
+select(grouping(ORDERS.STATUS), …)
 ```
+
+Aggregate modifiers return new objects and keep the type family:
+`countDistinct(x)`, `sum(x).distinct()`, `stringAgg(USERS.NAME, ", ").orderBy(USERS.NAME.asc())`,
+`count().filter(condition)`, `percentileCont(0.5, ORDERS.TOTAL.asc())` (median) and
+`mode(ORDERS.STATUS.asc())`.
 
 ### Window functions
 
-```java
-rowNumber().over(partitionBy(o.personNr).orderBy(o.createdAt.desc()))
-sum(o.total).over(partitionBy(o.personNr))                          // total per person on every row
-sum(o.total).over(window().orderBy(o.createdAt)
-        .rowsBetween(unboundedPreceding(), currentRow()))           // running total
-avg(o.total).over(window().orderBy(o.createdAt).rowsBetween(preceding(2), following(2)))
-lag(o.total, 1, inline(0)).over(window().orderBy(o.createdAt))
-rank().over()                                                       // OVER ()
-
-// named window
-select(rowNumber().over("w"), sum(o.total).over("w"))
-    .from(o)
-    .window("w", partitionBy(o.personNr).orderBy(o.createdAt))
-```
-
-Frames: `rowsBetween`, `rangeBetween`, `groupsBetween`, `rows`, `range`, or
-`frame("ROWS BETWEEN 1 PRECEDING AND 1 FOLLOWING EXCLUDE CURRENT ROW")`.
-
-### ORDER BY / LIMIT / paging
+Window-only functions (`rowNumber()`, `rank()`, `lag(..)`, …) are not fields until
+`over(..)` is called, so a forgotten window is a compile error. Aggregates can also
+be used as window functions.
 
 ```java
-.orderBy(p.lastName)                                 // default direction
-.orderBy(p.lastName.asc(), p.age.desc().nullsLast())
-.orderBy(desc(count()), inline(1))                   // by expression / position
-.limit(20).offset(40)
-.limit(val(pageSize))                                // bound
-.page(2, 25)                                         // LIMIT 25 OFFSET 50 (page index starts at 0)
-.orderBy(o.total.desc()).limitWithTies(3)            // FETCH FIRST 3 ROWS WITH TIES
+rowNumber().over(partitionBy(ORDERS.USER_ID).orderBy(ORDERS.ORDERED_ON.desc()))
+sum(ORDERS.TOTAL).over(partitionBy(ORDERS.USER_ID).orderBy(ORDERS.ORDERED_ON.asc())
+        .rowsBetween(unboundedPreceding(), currentRow()))                 // running total
+lag(ORDERS.TOTAL, 1, BigDecimal.ZERO).over(orderBy(ORDERS.ORDERED_ON.asc()))
+rank().over()                                                              // OVER ()
+
+WindowDefinition w = window("w", partitionBy(ORDERS.USER_ID).orderBy(ORDERS.ORDERED_ON.asc()));
+select(rowNumber().over(w), sum(ORDERS.TOTAL).over(w)).from(ORDERS).window(w)
 ```
 
-To show a page together with the total number of rows, run the same query
-twice: `.page(i, size).multiple()` for the page and `.fetchCount()` on a copy
-without paging.
+Frames: `rowsBetween`, `rangeBetween`, `groupsBetween`, `rows`, `range`, with
+`unboundedPreceding()`, `preceding(n)`, `currentRow()`, `following(n)`,
+`unboundedFollowing()` and `.exclude(WindowSpec.Exclude.CURRENT_ROW)`.
+
+### ORDER BY, LIMIT and OFFSET
+
+```java
+.orderBy(USERS.NAME.asc(), USERS.CREATED_AT.desc().nullsLast())
+.orderBy(USERS.NAME)                              // ASC
+.limit(20).offset(40)                             // written as literals
+.limit(param(pageSize))                           // bound
+.page(2, 25)                                      // LIMIT 25 OFFSET 50 (first page = 0)
+.orderBy(ORDERS.TOTAL.desc()).limitWithTies(3)    // FETCH FIRST 3 ROWS WITH TIES
+```
+
+### Keyset pagination
+
+Keyset pagination selects the rows after the last row of the previous page. Unlike
+`OFFSET` it stays fast on large tables and does not skip or repeat rows when data
+changes between requests.
+
+```java
+Page<Row3<UUID, String, Instant>> page = select(USERS.ID, USERS.NAME, USERS.CREATED_AT)
+        .from(USERS)
+        .orderBy(USERS.CREATED_AT.desc(), USERS.ID.desc())     // end with a unique column
+        .seekAfterCursor(request.cursor())                      // null for the first page
+        .limit(50)
+        .fetchPage();
+
+page.items();                                                   // the rows
+page.nextCursor().map(Cursor::encode);                          // an opaque, URL-safe token for the next page
+```
+
+- With uniform sort directions the condition is an index-friendly row comparison,
+  `(created_at, id) < (?, ?)`. Mixed directions expand to the equivalent `OR` form.
+- The `ORDER BY` fields must be in the select list.
+- `seekAfter(values…)` and `seekAfter(Cursor)` take the values directly.
+- Repositories offer the same through `findPage(condition, cursor, limit, orderBy…)`.
 
 ### Set operations
 
 ```java
-select(p.email).from(p)
-    .union(select(c.email).from(c))          // UNION (SELECT ...)
-    .unionAll(...) .intersect(...) .intersectAll(...) .except(...) .exceptAll(...)
-    .orderBy(inline(1))                      // applies to the combined result
+select(USERS.EMAIL).from(USERS)
+    .union(select(CUSTOMERS.EMAIL).from(CUSTOMERS))      // also unionAll, intersect(All), except(All)
+    .orderBy(USERS.EMAIL.asc())                          // applies to the combined result
 ```
+
+Both sides must be selects of the same types; the compiler checks this.
 
 ### Sub-queries
 
-Every statement is also an expression. When nested it is rendered in
-parentheses, and its bind parameters are merged into the outer statement.
-
 ```java
-.where(in(p.personNr, select(o.personNr).from(o).where(gt(o.total, 1000))))
-.where(exists(select(inline(1)).from(o).where(eq(o.personNr, p.personNr))))
-.where(notExists(...))
-.where(gt(o.total, all(select(o.total).from(o).where(...))))
-.where(eq(p.personNr, any(val(new Long[]{1L, 2L}))))       // = ANY(array)
-select(arrayOf(select(o.orderId).from(o).where(...)).as("orderIds"))   // ARRAY(SELECT ...)
+.where(USERS.ID.in(select(ORDERS.USER_ID).from(ORDERS).where(ORDERS.TOTAL.gt(BigDecimal.TEN))))
+.where(exists(selectOne().from(ORDERS).where(ORDERS.USER_ID.eq(USERS.ID))))
+.where(notExists(…))
+
+Field<Long> orderCount = selectCount().from(ORDERS).where(ORDERS.USER_ID.eq(USERS.ID)).asField().as("orders");
+select(USERS.NAME, orderCount).from(USERS)                                    // scalar sub-query
+
+select(arrayOf(select(ORDERS.ID).from(ORDERS).where(..)))                      // ARRAY(SELECT …)
 ```
 
-### Common table expressions (WITH)
+`in(Collection)` binds **one array** (`= ANY(?)`), so the SQL text is the same for
+any number of values: `USERS.ID.in(ids)`.
+
+### Common table expressions
+
+A CTE is a table built from a query. Its columns are the named output fields of the
+query, accessed with `field(..)`:
 
 ```java
-SelectQuery<Object[]> revenue = select(o.personNr, sum(o.total).as("total"))
-        .from(o).groupBy(o.personNr);
+Field<BigDecimal> total = sum(ORDERS.TOTAL).as("total");
+Cte paid = cte("paid", select(ORDERS.USER_ID, total).from(ORDERS).where(ORDERS.STATUS.eq("PAID")).groupBy(ORDERS.USER_ID));
 
-select(p.lastName, "r.total")
-    .with("r", revenue)                                // WITH r AS (...)
-    .from(p)
-    .join("r", "r.PERSON_NR = p.PERSON_NR")
+select(USERS.NAME, paid.field(total))
+    .with(paid)
+    .from(USERS)
+    .join(paid).on(paid.field(ORDERS.USER_ID).eq(USERS.ID))
+```
 
-.with("t(a, b)", query)                               // with column list
-.withMaterialized("t", query)                          // AS MATERIALIZED (PostgreSQL 12+)
-.withNotMaterialized("t", query)
+`cte(..).materialized()` and `.notMaterialized()` control inlining (PostgreSQL 12+).
 
-// recursive: numbers 1..10
-createContribution(Integer.class)
-    .withRecursive("t(n)", select(inline(1)).unionAll(select("n + 1").from("t").where(lt("n", inline(10)))))
-    .select("n").from("t")
-    .multiple();
+A **recursive** CTE refers to itself, so its columns are declared first:
+
+```java
+Cte t = recursiveCte("t");
+NumberColumn<Integer> n = t.declareNumber("n", SqlTypes.INT4);
+t.as(select(inline(1)).unionAll(select(n.plus(1)).from(t).where(n.lt(10))));
+List<Integer> oneToTen = select(n).withRecursive(t).from(t).fetch();
+```
+
+**Data-modifying** CTEs take an `INSERT`, `UPDATE` or `DELETE` with `RETURNING`:
+
+```java
+Cte moved = cte("moved", deleteFrom(ORDERS).where(ORDERS.ORDERED_ON.lt(cutoff)).returning(ORDERS.ID, ORDERS.TOTAL));
+long count = selectCount().with(moved).from(moved).fetchOne();
+```
+
+### Derived tables, LATERAL and set-returning functions
+
+```java
+DerivedTable last = select(ORDERS.TOTAL, ORDERS.ORDERED_ON).from(ORDERS)
+        .where(ORDERS.USER_ID.eq(USERS.ID)).orderBy(ORDERS.ORDERED_ON.desc()).limit(1)
+        .asTable("lo");
+select(USERS.NAME, last.field(ORDERS.TOTAL)).from(USERS).leftJoin(lateral(last)).onTrue()
+
+FunctionTable<Integer> n = tableOf(generateSeries(1, 10), "n");
+select(n.value()).from(n)                               // generate_series(1, 10) AS n(value)
 ```
 
 ### Row locking
 
 ```java
-.forUpdate()                     // FOR UPDATE
-.forNoKeyUpdate()                // FOR NO KEY UPDATE
-.forShare()  .forKeyShare()
-.forUpdate().of(p)               // FOR UPDATE OF p
-.forUpdate().nowait()            // fail immediately if locked
-.forUpdate().skipLocked()        // skip locked rows (job queues)
+.forUpdate()  .forNoKeyUpdate()  .forShare()  .forKeyShare()
+.forUpdate().of(USERS)                  // FOR UPDATE OF app_user
+.forUpdate().nowait()                   // LockNotAvailableException if locked
+.forUpdate().skipLocked()               // job queues
 ```
 
 ---
@@ -235,120 +247,94 @@ createContribution(Integer.class)
 ## INSERT
 
 ```java
-// column / value pairs (single row)
-insertInto(p)
-    .set(p.firstName, val("Ada"))
-    .set(p.lastName, val("Lovelace"))
-    .set(p.createdAt, now())
+// column by column
+insertInto(USERS)
+    .set(USERS.ID, users.createKey())
+    .set(USERS.NAME, "Ada")
+    .set(USERS.EMAIL, "ada@example.org")
+    .set(USERS.CREATED_AT, now())                 // expressions work too
     .execute();
 
-// multi-row VALUES
-insertInto(p).columns(p.firstName, p.lastName)
-    .values(val("Ada"), val("Lovelace"))
-    .values(val("Alan"), val("Turing"))
+// several rows, column by column; columns missing in a row get DEFAULT
+insertInto(USERS).set(USERS.NAME, "A").newRow().set(USERS.NAME, "B").set(USERS.ROLE, Role.ADMIN).execute();
+
+// typed columns and values
+insertInto(USERS).columns(USERS.NAME, USERS.EMAIL)
+    .values("Ada", "ada@example.org")
+    .values("Alan", "alan@example.org")
     .execute();
 
-// INSERT ... SELECT
-insertInto(archive).columns(archive.personNr, archive.lastName)
-    .select(select(p.personNr, p.lastName).from(p).where(eq(p.status, val("DELETED"))))
-    .execute();
+// INSERT … SELECT (the select must have matching types)
+insertInto(ARCHIVE).columns(ARCHIVE.ID, ARCHIVE.NAME).select(select(USERS.ID, USERS.NAME).from(USERS).where(..)).execute();
 
-insertInto(p).defaultValues().execute();                // DEFAULT VALUES
-insertInto(p).set(p.personNr, 42L).overridingSystemValue();   // write into an identity column
-insertInto(p).set(p.age, defaultValue())                 // DEFAULT for one column
+insertInto(EVENTS).defaultValues().execute();
+insertInto(ORDERS).set(ORDERS.ID, 42L).overridingSystemValue().execute();   // GENERATED ALWAYS identity
 ```
 
-The target renders as `INSERT INTO PERSON AS p`, so the alias can be used in
-`ON CONFLICT … DO UPDATE` and `RETURNING`.
-
-### Upsert (ON CONFLICT)
+### Upserts
 
 ```java
-insertInto(p)
-    .set(p.email, val(email))
-    .set(p.lastName, val(name))
-    .onConflict(p.email)
-    .doUpdateSetExcluded(p.lastName)                         // LAST_NAME = EXCLUDED.LAST_NAME
-    .doUpdateSet(p.loginCount, p.loginCount.plus(1))         // any expression
-    .doUpdateWhere(ne(p.status, val("LOCKED")))               // DO UPDATE ... WHERE
+insertInto(USERS)
+    .set(USERS.EMAIL, email).set(USERS.NAME, name)
+    .onConflict(USERS.EMAIL)
+    .doUpdateSetExcluded(USERS.NAME)                               // name = EXCLUDED.name
+    .doUpdateSet(USERS.LOGIN_COUNT, USERS.LOGIN_COUNT.plus(1))     // any expression
+    .doUpdateWhere(USERS.ACTIVE)                                    // DO UPDATE … WHERE
     .execute();
 
-insertInto(p).set(p.email, val(email)).doNothing()                  // ON CONFLICT DO NOTHING
-insertInto(p).set(...).onConflict(p.email).doNothing()
-insertInto(p).set(...).onConflictOnConstraint("person_email_key").doNothing()
-insertInto(p).set(...).onConflict(p.email).onConflictWhere(isNull(p.deletedAt)).doNothing()  // partial index
+insertInto(USERS).set(..).doNothing()                              // ON CONFLICT DO NOTHING
+insertInto(USERS).set(..).onConflictOnConstraint(USERS.UK_EMAIL).doNothing()
+insertInto(USERS).set(..).onConflict(USERS.EMAIL).onConflictWhere(USERS.DELETED_AT.isNull()).doNothing()   // partial index
+AbstractInsert.excluded(USERS.NAME)                                 // EXCLUDED.name as a typed field
 ```
 
 ## UPDATE
 
 ```java
-update(p)
-    .set(p.status, val("INACTIVE"))
-    .set(p.age, p.age.plus(1))                                // expressions
-    .set(p.modifiedAt, now())
-    .setIf(newEmail != null, p.email, val(newEmail))          // conditional assignment
-    .where(eq(p.personNr, id))
-    .execute();                                               // number of rows
+update(USERS)
+    .set(USERS.ROLE, Role.ADMIN)
+    .set(USERS.LOGIN_COUNT, USERS.LOGIN_COUNT.plus(1))
+    .setNull(USERS.DELETED_AT)
+    .where(USERS.ID.eq(id))
+    .execute();                                            // number of rows
 
-// UPDATE ... FROM (join)
-update(o).set(o.status, val("VIP"))
-    .from(p)
-    .where(eq(o.personNr, p.personNr), eq(p.status, val("VIP")))
+update(ORDERS).set(ORDERS.STATUS, "VIP").from(USERS)       // UPDATE … FROM
+    .where(ORDERS.USER_ID.eq(USERS.ID), USERS.ROLE.eq(Role.ADMIN))
     .execute();
-
-// multi-column assignment from a sub-query
-update(o).set(new Object[]{o.status, o.total}, select(x.status, x.total).from(x).where(eq(x.id, o.orderId)))
 ```
 
-For safety, an `UPDATE` without `WHERE` throws an exception. Call `.allRows()`
-if you really mean to update every row.
+An `UPDATE` without `WHERE` is rejected; call `.allRows()` to update every row on
+purpose.
 
 ## DELETE
 
 ```java
-deleteFrom(p).where(eq(p.personNr, id)).execute();
-
-// DELETE ... USING (join)
-deleteFrom(o).using(p)
-    .where(eq(o.personNr, p.personNr), eq(p.status, val("DELETED")))
-    .execute();
-
-deleteFrom(tmp).allRows().execute();     // required without WHERE
+deleteFrom(SESSIONS).where(SESSIONS.EXPIRES_AT.lt(Instant.now())).execute();
+deleteFrom(ORDERS).using(USERS).where(ORDERS.USER_ID.eq(USERS.ID), USERS.DELETED_AT.isNotNull()).execute();
+deleteFrom(TMP).allRows().execute();                       // required without WHERE
 ```
+
+With a [soft-delete policy](extension-points.md#table-policies), a `DELETE` becomes
+an `UPDATE … SET deleted_at = now`.
 
 ## TRUNCATE
 
 ```java
-truncate(o, p).restartIdentity().cascade().execute();
+truncate(IMPORT_STAGING).restartIdentity().cascade().execute();
 ```
 
 ## RETURNING
 
-`INSERT`, `UPDATE` and `DELETE` support `RETURNING`. The returned rows are
-mapped like `SELECT` results:
-
 ```java
-Long id = insertInto(p).set(p.lastName, val("X")).returning(p.personNr).single(Long.class);
+UUID id = insertInto(USERS).set(USERS.NAME, "Ada").returning(USERS.ID).fetchOne();
 
-record Changed(long personNr, String status) {}
-List<Changed> changed = update(p).set(p.status, val("A")).where(isNull(p.status))
-        .returning(p.personNr, p.status)
-        .multiple(Changed.class);
+Row2<UUID, Instant> created = insertInto(USERS).set(..).returning(USERS.ID, USERS.CREATED_AT).fetchOne();
 
-Optional<Long> deleted = deleteFrom(p).where(eq(p.email, val(mail))).returning(p.personNr).optional(Long.class);
-List<Object[]> all = deleteFrom(o).where(...).returning(o.all()).multiple(Object[].class);
+List<UserRow> changed = update(USERS).set(USERS.ACTIVE, false).where(..).returningAll().fetch();
+
+Optional<UUID> inserted = insertInto(USERS).set(..).onConflict(USERS.EMAIL).doNothing()
+        .returning(USERS.ID).fetchOptional();                 // empty if the row already existed
 ```
 
-## Data-modifying CTEs
-
-PostgreSQL lets `INSERT`, `UPDATE` and `DELETE` with `RETURNING` run inside
-`WITH`. This moves rows in a single statement:
-
-```java
-createContribution(Long.class)
-    .with("moved", deleteFrom(o).where(lt(o.createdAt, now().minus(interval("1 year")))).returning(o.all()))
-    .with("archived", insertInto("ORDERS_ARCHIVE").select(selectFrom("moved")).returning(inline(1)))
-    .select(count())
-    .from("archived")
-    .single();
-```
+Listeners may request more `RETURNING` columns (for example for an audit log). The
+pipeline adds them to the statement and removes them from your result again.
