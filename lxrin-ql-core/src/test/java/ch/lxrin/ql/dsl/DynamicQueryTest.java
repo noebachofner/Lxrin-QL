@@ -183,10 +183,52 @@ class DynamicQueryTest {
         db.willReturn(new Object[] {id, "x"});
         assertEquals(new Positional(id, "x"),
                 ctx.createContribution(Positional.class, USERS, (c, b) -> c.select(USERS.ID.as("a"), USERS.NAME.as("b"))).fetchOne());
-        // by position when the names do not match
+        // extra fields are allowed as long as every component has one
+        db.willReturn(new Object[] {id, "ada@example.org", "Ada"});
+        assertEquals(new Renamed("ada@example.org", id),
+                ctx.createContribution(Renamed.class, USERS, (c, b) -> c.select(USERS.ID, USERS.EMAIL, USERS.NAME)).fetchOne());
+        // by position only when requested
         db.willReturn(new Object[] {id, "x"});
         assertEquals(new Positional(id, "x"),
-                ctx.createContribution(Positional.class, USERS, (c, b) -> c.select(USERS.ID, USERS.NAME)).fetchOne());
+                ctx.createContribution(Positional.class, USERS, (c, b) -> c.mapByPosition().select(USERS.ID, USERS.NAME)).fetchOne());
+    }
+
+    @Test
+    void recordsAreNeverMappedByPositionSilently() {
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+                () -> createContribution(Positional.class, USERS, (c, b) -> c.select(USERS.ID, USERS.NAME)));
+        assertTrue(e.getMessage().contains("no field for component(s) a (UUID), b (String)"), e.getMessage());
+        assertTrue(e.getMessage().contains("unused field(s): id, name."), e.getMessage());
+        assertTrue(e.getMessage().contains("mapByPosition()"), e.getMessage());
+
+        // reordering a select list whose names match changes nothing
+        UUID id = UUID.randomUUID();
+        db.willReturn(new Object[] {"Ada", "ada@example.org", id});
+        assertEquals(new UserSummary(id, "Ada", "ada@example.org"),
+                ctx.createContribution(UserSummary.class, USERS, (c, b) -> c.select(USERS.NAME, USERS.EMAIL, USERS.ID)).fetchOne());
+
+        e = assertThrows(IllegalArgumentException.class,
+                () -> createContribution(UserSummary.class, USERS, (c, b) -> c.select(USERS.ID, USERS.NAME.as("nickname"), USERS.CREATED_AT)));
+        assertTrue(e.getMessage().contains("no field for component(s) name (String), email (String);"), e.getMessage());
+        assertTrue(e.getMessage().contains("unused field(s): nickname, created_at."), e.getMessage());
+
+        e = assertThrows(IllegalArgumentException.class,
+                () -> createContribution(Renamed.class, USERS, (c, b) -> c.select(USERS.ID, USERS.EMAIL, USERS.NAME.as("email"))));
+        assertTrue(e.getMessage().contains("ambiguous component(s) email (String) matches 2 fields"), e.getMessage());
+
+        assertThrows(IllegalArgumentException.class,
+                () -> createContribution(Positional.class, USERS, (c, b) -> c.mapByPosition().select(USERS.ID)));
+        assertThrows(IllegalArgumentException.class,
+                () -> createContribution(Positional.class, USERS, (c, b) -> c.mapByPosition().select(USERS.NAME, USERS.ID)));
+        assertThrows(IllegalArgumentException.class,
+                () -> createContribution(String.class, USERS, (c, b) -> c.mapByPosition().select(USERS.NAME)));
+    }
+
+    @Test
+    void constructorReferencesAreUnchanged() {
+        UUID id = UUID.randomUUID();
+        db.willReturn(new Object[] {id, "x"});
+        assertEquals(List.of(new Positional(id, "x")), ctx.select(USERS.ID, USERS.NAME).from(USERS).fetch(Positional::new));
     }
 
     @Test

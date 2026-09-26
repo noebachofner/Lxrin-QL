@@ -13,7 +13,7 @@ public final class Truncate {
     private QueryContext context;
     private final TruncateStatement statement;
 
-    /** Creates the builder; use {@code Dsl.truncate(..)} or {@code ctx.truncate(..)}. */
+    /** Creates the builder; use {@code QL.truncate(..)} or {@code ctx.truncate(..)}. */
     public Truncate(QueryContext context, List<Table<?>> tables) {
         this.context = context;
         this.statement = new TruncateStatement(tables);

@@ -7,6 +7,8 @@ description = "Spring Boot 4 integration for LxrinQL: QueryContext bean, Spring-
 
 dependencies {
     api(project(":lxrin-ql-core"))
+    // optional: the audit history is configured when lxrin-ql-audit is on the class path
+    compileOnly(project(":lxrin-ql-audit"))
     // Spring is provided by the application (Spring Boot 4.x)
     compileOnly(platform(libs.spring.boot.dependencies))
     compileOnly(libs.spring.boot.autoconfigure)
@@ -28,6 +30,7 @@ dependencies {
     testImplementation(platform(libs.junit.bom))
     testImplementation(libs.junit.jupiter)
     testImplementation(testFixtures(project(":lxrin-ql-core")))
+    testImplementation(project(":lxrin-ql-audit"))
     testRuntimeOnly(libs.junit.launcher)
 }
 

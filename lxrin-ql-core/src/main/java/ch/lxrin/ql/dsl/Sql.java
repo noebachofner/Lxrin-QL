@@ -14,7 +14,7 @@ import java.util.Objects;
  * <p>Everywhere else in LxrinQL a Java value is a bind parameter. The
  * methods of this class take a template with positional placeholders
  * {@code {0}}, {@code {1}}, ... whose arguments are typed query parts
- * (fields, {@code Dsl.param(..)}), never strings, so even a raw template
+ * (fields, {@code QL.param(..)}), never strings, so even a raw template
  * cannot turn user input into SQL:</p>
  * <pre>{@code
  * Field<Double> score = Sql.raw("similarity({0}, {1})", SqlTypes.FLOAT8, USERS.NAME, param(text));

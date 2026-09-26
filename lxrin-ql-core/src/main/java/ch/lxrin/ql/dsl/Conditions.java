@@ -17,7 +17,7 @@ import java.util.function.Supplier;
  * Every condition operator as a static function. Each one has the same
  * meaning, SQL and type checks as the field method of the same name:
  * {@code eq(USERS.EMAIL, email)} is {@code USERS.EMAIL.eq(email)}. All
- * methods are also available through {@code import static ch.lxrin.ql.dsl.Dsl.*}.
+ * methods are also available through {@code import static ch.lxrin.ql.QL.*}.
  *
  * <p>Values are always bind parameters, and {@code null} values are rejected
  * instead of being dropped; use {@link #when(boolean, Supplier)}, the

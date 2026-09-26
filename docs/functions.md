@@ -1,9 +1,9 @@
 # Function reference
 
-All functions are static methods of `ch.lxrin.ql.dsl.Dsl` (`import static ch.lxrin.ql.dsl.Dsl.*;`).
+All functions are static methods of `ch.lxrin.ql.QL` (`import static ch.lxrin.ql.QL.*;`), and of `ch.lxrin.ql.dsl.Dsl`.
 This page is generated from `Functions.java`. The condition operators (`eq`, `in`,
 `and`, `exists`, `rangeContains`, `tsMatches`, …) are static methods of
-`ch.lxrin.ql.dsl.Conditions`, also available through `Dsl.*`; see [Conditions](conditions.md).
+`ch.lxrin.ql.dsl.Conditions`, also available through `QL.*`; see [Conditions](conditions.md).
 
 - Arguments typed `Field<...>` are expressions: columns, other functions, or values wrapped with `param(..)`.
 - `String` arguments that belong to the shape of the query (date parts, formats, separators, regex patterns,

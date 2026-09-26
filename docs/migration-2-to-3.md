@@ -16,7 +16,7 @@ time, and you can migrate one class at a time.
    ```kotlin
    dependencies {
        implementation("ch.lxrin:lxrin-ql:2.0.0")          // until the last 2.x query is gone
-       implementation("ch.lxrin:lxrin-ql-core:3.1.0")
+       implementation("ch.lxrin:lxrin-ql-core:3.2.0")
    }
    ```
 
@@ -40,7 +40,7 @@ time, and you can migrate one class at a time.
 | 2.x | 3.0 |
 |---|---|
 | `ch.lxrin:lxrin-ql` | `ch.lxrin:lxrin-ql-core` (+ `-codegen`, `-gradle-plugin`, `-maven-plugin`, `-spring`, `-test`, `-bom`) |
-| `import static ch.lxrin.ql.LxrinQL.*` | `import static ch.lxrin.ql.dsl.Dsl.*` and `import static com.example.db.Tables.*` |
+| `import static ch.lxrin.ql.LxrinQL.*` | `import static ch.lxrin.ql.QL.*` (3.0 and 3.1: `…dsl.Dsl.*`) and `import static com.example.db.Tables.*` |
 | `class PersonTable extends TableDef { Column lastName = column("LAST_NAME"); }` | generated `PersonTable` with `StringColumn LAST_NAME` |
 | `table("ADDRESS", "a").col("CITY")` | `Sql.table("address").field("city", SqlTypes.TEXT)` (better: generate the table) |
 | `p.lastName` (untyped) | `PERSON.LAST_NAME` (a `StringColumn`) |
@@ -64,7 +64,7 @@ time, and you can migrate one class at a time.
 | `.single()` (first row or `null`) | `.fetchOne()` (exactly one), `.fetchOptional()`, `.fetchFirst()` |
 | `.optional()` | `.fetchOptional()` |
 | `RowMapper` over `Object[]` | `fetch(Function)` on typed rows |
-| `.join(o, eq(o.personNr, p.personNr))` | `.join(ORDERS).on(ORDERS.PERSON_NR.eq(PERSON.PERSON_NR))` or `.onKey(ORDERS.FK_PERSON)` |
+| `.join(o, eq(o.personNr, p.personNr))` | `.join(ORDERS).on(ORDERS.PERSON_NR.eq(PERSON.PERSON_NR))` or `.onKey(ORDERS.FK_PERSON_NR)` |
 | `.join("LEFT JOIN a ON …")` | `.leftJoin(ADDRESS).on(..)` |
 | `.with("r", query)` + `"r.total"` | `Cte r = cte("r", query)` + `r.field(total)` |
 | `window().rowsBetween(unboundedPreceding(), currentRow())` (strings) | the same, with typed `FrameBound`s |
@@ -96,3 +96,72 @@ time, and you can migrate one class at a time.
   (`USERS.as("u")`).
 - **`UPDATE`/`DELETE` without `WHERE`** still need `.allRows()`. The error is now an
   `InvalidStatementException` when the statement runs.
+
+## From 3.1 to 3.2
+
+3.2 has two intentional incompatibilities. Everything else is additive.
+
+### Foreign key constants are named after their columns
+
+Generated foreign key constants are now `FK_` followed by the key's own columns. In 3.1,
+the first key of a table was named after the referenced table:
+
+| Foreign key | 3.1 | 3.2 |
+|---|---|---|
+| `orders.user_id → app_user(id)` | `ORDERS.FK_USER` | `ORDERS.FK_USER_ID` |
+| `app_user.created_by → app_user(id)` | `USERS.FK_USER` | `USERS.FK_CREATED_BY` |
+| `app_user.updated_by → app_user(id)` | `USERS.FK_UPDATED_BY` | `USERS.FK_UPDATED_BY` |
+
+The compiler finds every renamed constant. Either replace the uses, or keep the old
+names with `foreignKeyNames`:
+
+```kotlin
+lxrinQl {
+    foreignKeyNames.put("orders_user_id_fkey", "FK_USER")          // Kotlin DSL
+}
+```
+
+```groovy
+lxrinQl {
+    foreignKeyNames = [orders_user_id_fkey: 'FK_USER']             // Groovy DSL
+}
+```
+
+Check each `onKey(..)` that used the 3.1 name of a table with several foreign keys to
+the same table. In 3.1 the name depended on the key order, so it may have joined on a
+different key than you expected.
+
+### Records are no longer mapped by position silently
+
+In 3.1, `createContribution(Type.class, ..)` matched record components by name and fell
+back to position when the names did not match. In 3.2 a component without a field of the
+same name (column name or alias, `snake_case` = `camelCase`) fails when the query is
+built:
+
+```
+cannot map the select list into Pair by name: no field for component(s) a (UUID), b (String);
+unused field(s): id, name. …
+```
+
+Rename the fields or the components, or ask for positional mapping explicitly:
+
+```java
+record Pair(UUID a, String b) {}
+
+// 3.1: mapped by position silently
+createContribution(Pair.class, USERS, (c, b) -> c.select(USERS.ID, USERS.NAME))
+// 3.2
+createContribution(Pair.class, USERS, (c, b) -> c.select(USERS.ID.as("a"), USERS.NAME.as("b")))
+createContribution(Pair.class, USERS, (c, b) -> c.mapByPosition().select(USERS.ID, USERS.NAME))
+```
+
+Constructor references (`fetch(Pair::new)`) are unchanged.
+
+### New entry point `QL`
+
+`ch.lxrin.ql.QL` has the same static methods as `ch.lxrin.ql.dsl.Dsl`. Existing code keeps
+working; new code can use `QL.` or `import static ch.lxrin.ql.QL.*`. Do not import both
+statically in one file. The methods are the same, so it only adds noise.
+
+`QL` lives in the package `ch.lxrin.ql`, which 2.x also uses (`LxrinQL`, `RowMapper`).
+The class names do not clash, so 2.x and 3.2 still work side by side on the class path.

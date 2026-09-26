@@ -261,6 +261,28 @@ class PipelineTest {
     }
 
     @Test
+    void userConventions() {
+        java.util.concurrent.atomic.AtomicReference<String> user = new java.util.concurrent.atomic.AtomicReference<>("alice");
+        QueryContext ctx = ctx(b -> b
+                .convention(ColumnConventions.createdBy("name", String.class, user::get))
+                .convention(ColumnConventions.updatedBy("email", String.class, user::get)));
+        ctx.insertInto(USERS).set(USERS.ID, UUID.randomUUID()).execute();
+        assertEquals("INSERT INTO users (id, name, email) VALUES (?, ?, ?)", db.lastSql());
+        assertEquals(List.of("alice", "alice"), binds(0).subList(1, 3));
+
+        user.set("bob");
+        ctx.update(USERS).set(USERS.ACTIVE, false).allRows().execute();
+        assertEquals("UPDATE users SET active = ?, email = ?", db.lastSql(), "created_by is not touched by an update");
+        assertEquals(List.of(false, "bob"), binds(1));
+
+        user.set(null);
+        ctx.insertInto(USERS).set(USERS.ID, UUID.randomUUID()).execute();
+        assertEquals(java.util.Arrays.asList(null, null), binds(2).subList(1, 3), "no user, e.g. a system job");
+        assertThrows(IllegalStateException.class, () -> ctx(b -> b.convention(ColumnConventions.createdBy("name", UUID.class,
+                UUID::randomUUID))).insertInto(USERS).set(USERS.ID, UUID.randomUUID()).execute());
+    }
+
+    @Test
     void listenersSeeStructureAndAffectedRowsIndependentOfCallerReturning() {
         List<String> seen = new ArrayList<>();
         StatementListener listener = new StatementListener() {
@@ -410,5 +432,16 @@ class PipelineTest {
         assertEquals(10, derived.batchSize());
         assertEquals("version", derived.versionColumn().orElseThrow());
         assertEquals(1, base.bypassing(SoftDeletePolicy.class).bypassedPolicies().size());
+
+        QueryContext full = ctx(b -> b.versionColumn("version").listener(new StatementListener() {})
+                .convention(ColumnConventions.createdAt("created_at", clock)).policy(new SoftDeletePolicy("deleted_at", clock)));
+        QueryContext plain = full.derive(b -> b.clearListeners().clearConventions().clearPolicies().versionColumn(null));
+        assertEquals(List.of(), plain.listeners());
+        assertEquals(List.of(), plain.conventions());
+        assertEquals(List.of(), plain.policies());
+        assertTrue(plain.versionColumn().isEmpty());
+        assertEquals(1, full.listeners().size(), "the original is unchanged");
+        plain.insertInto(USERS).set(USERS.ID, UUID.randomUUID()).execute();
+        assertEquals("INSERT INTO users (id) VALUES (?)", db.lastSql());
     }
 }

@@ -5,8 +5,15 @@ provided by your application.
 
 ```kotlin
 dependencies {
-    implementation("ch.lxrin:lxrin-ql-spring:3.1.0")
+    implementation("ch.lxrin:lxrin-ql-spring:3.2.0")
     implementation("org.springframework.boot:spring-boot-starter-jdbc")
+}
+```
+
+```groovy
+dependencies {
+    implementation 'ch.lxrin:lxrin-ql-spring:3.2.0'
+    implementation 'org.springframework.boot:spring-boot-starter-jdbc'
 }
 ```
 
@@ -26,7 +33,8 @@ dependencies {
   `META-INF/lxrin-ql/repositories` are registered automatically; alternatively use
   `@EnableLxrinRepositories(basePackages = "com.example.db")`.
 - **Default context and `BEANS`.** When the context has started,
-  `QueryContext.getDefault()` returns the bean (for the static `Dsl.*`), and
+  `QueryContext.getDefault()` returns the bean (for the static `QL.*`), so
+  `QL.createContribution(..)` works in any bean without injecting the context, and
   `BEANS.get(..)` delegates to the `ApplicationContext`, so
   `BEANS.get(UserRepository.class)` returns the injected bean.
 - **JSON** uses the application's Jackson 3 `JsonMapper` (for `SqlTypes.jsonb(MyRecord.class)`).
@@ -53,8 +61,13 @@ class PersistenceConfig {
     }
 
     @Bean
-    ColumnConvention<String> createdBy(CurrentUser user) {
-        return ColumnConventions.onInsert("created_by", String.class, c -> user.name());   // e.g. from Keycloak
+    ColumnConvention<UUID> createdBy() {
+        return ColumnConventions.createdBy("created_by", UUID.class, CurrentUser::id);
+    }
+
+    @Bean
+    ColumnConvention<UUID> updatedBy() {
+        return ColumnConventions.updatedBy("updated_by", UUID.class, CurrentUser::id);
     }
 
     @Bean
@@ -63,8 +76,8 @@ class PersistenceConfig {
     }
 
     @Bean
-    StatementListener audit(CurrentUser user, Clock clock) {
-        return new AuditListener(user::name, clock);
+    AuditUser<UUID> auditUser() {
+        return AuditUser.of(SqlTypes.UUID, CurrentUser::id);   // with lxrin-ql-audit and lxrin.ql.audit.tables
     }
 }
 
@@ -85,6 +98,31 @@ class UserService {
 }
 ```
 
+### The current user from Spring Security
+
+`CurrentUser::id` above reads the user's UUID from the security context. With Keycloak
+and `spring-boot-starter-oauth2-resource-server`, the authentication name is the token's
+`sub` claim, which is the user's UUID:
+
+```java
+public final class CurrentUser {
+
+    private CurrentUser() {}
+
+    public static UUID id() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || !authentication.isAuthenticated()) return null;   // e.g. a scheduled job
+        return UUID.fromString(authentication.getName());
+    }
+}
+```
+
+`createdBy` sets the column on insert; `updatedBy` sets it on insert and update. A
+`null` from the supplier writes `NULL`. The supplier runs in the thread that executes
+the statement, which is the request thread for `@Transactional` services. The tested
+version is
+[`SpringSecurityIT`](../integration-tests/src/test/java/ch/lxrin/ql/it/SpringSecurityIT.java).
+
 ## Properties
 
 | Property | Default | Meaning |
@@ -96,5 +134,8 @@ class UserService {
 | `lxrin.ql.logging.enabled` | `true` | register the `LoggingObserver` |
 | `lxrin.ql.logging.slow-threshold` | `500ms` | slower statements are logged as warnings |
 | `lxrin.ql.logging.binds` | `false` | include bind values in the log (sensitive values are always redacted) |
+
+The audit history (`lxrin-ql-audit`) has its own properties, `lxrin.ql.audit.*`. See
+[Audit history](audit.md#with-spring-boot).
 
 To change the builder beyond these properties, declare a `QueryContextCustomizer` bean.

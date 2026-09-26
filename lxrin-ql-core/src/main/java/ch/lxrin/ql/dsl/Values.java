@@ -11,11 +11,11 @@ import java.util.UUID;
 
 /**
  * Bind parameters and inline literals as fields. All methods are also
- * available through {@code import static ch.lxrin.ql.dsl.Dsl.*}.
+ * available through {@code import static ch.lxrin.ql.QL.*}.
  */
 public class Values extends ArityStatics {
 
-    /** Static members only; extended by {@link Dsl}. */
+    /** Static members only; extended by {@link Statements}. */
     protected Values() {}
 
     /** A bind parameter of the given type; {@code null} is allowed. */

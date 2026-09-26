@@ -1,14 +1,15 @@
 # Queries
 
 All examples assume these imports and the generated tables `USERS` (`app_user`)
-and `ORDERS` (`orders`, with the foreign key `FK_USER` to `app_user`):
+and `ORDERS` (`orders`, with the foreign key `FK_USER_ID` to `app_user`):
 
 ```java
-import static ch.lxrin.ql.dsl.Dsl.*;
+import static ch.lxrin.ql.QL.*;
 import static com.example.db.Tables.*;
 ```
 
-Statements created with `Dsl.*` run on `QueryContext.getDefault()`. Statements
+Statements created with `QL.*` (or `QL.createContribution(..)` without the static
+import) run on `QueryContext.getDefault()`. Statements
 created with `ctx.select(..)`, `ctx.insertInto(..)`, … run on `ctx`. Everything else
 is identical. Every builder can be rendered without running it: `render()` returns
 the SQL with `?` placeholders and the typed binds, and `toString()` returns the same
@@ -26,6 +27,10 @@ as text.
 
 ## Two styles
 
+`ch.lxrin.ql.QL` is the entry point for both: `QL.createContribution(..)`,
+`QL.select(..)`, `QL.eq(..)`, … With `import static ch.lxrin.ql.QL.*` the prefix can be
+left out, as in the rest of this page.
+
 LxrinQL has two ways to write a statement. Both share the same operators, type checks
 and pipeline (policies, conventions, listeners, observers), and they can be mixed
 freely. The `createContribution` style is a thin layer over the `select(..)` builders.
@@ -35,7 +40,7 @@ freely. The `createContribution` style is a thin layer over the `select(..)` bui
 ```java
 record UserSummary(UUID id, String name, String email) {}
 
-List<UserSummary> users = createContribution(UserSummary.class, USERS, (c, b) -> c
+List<UserSummary> users = QL.createContribution(UserSummary.class, USERS, (c, b) -> c
         .select(USERS.ID, USERS.NAME, USERS.EMAIL)
         .where(USERS.EMAIL.endsWith("@example.org"),
                USERS.CREATED_AT.ge(b.setInstant(since)),
@@ -43,6 +48,7 @@ List<UserSummary> users = createContribution(UserSummary.class, USERS, (c, b) ->
         .orderBy(USERS.NAME.asc()))
     .fetch();
 
+// with import static ch.lxrin.ql.QL.* the prefix is optional
 createInsert(USERS, (c, b) -> c.set(USERS.ID, id).set(USERS.NAME, b.setString(name))).execute();
 createUpdate(USERS, (c, b) -> c.set(USERS.NAME, name).where(USERS.ID.eq(id))).execute();
 createDelete(SESSIONS, (c, b) -> c.where(SESSIONS.EXPIRES_AT.lt(b.setInstant(now)))).execute();
@@ -69,8 +75,12 @@ createUpsert(USERS, (c, b) -> c.set(USERS.ID, id).set(USERS.NAME, name)).execute
   `USERS.EMAIL.eq(email)` renders the same SQL as `USERS.EMAIL.eq(b.setString(email))`.
   `b.setX(null)` throws; use `b.setNull(type)`.
 - **The result type** is one of:
-  - a record: components are matched to the selected fields by name (`created_at`
-    or an alias → `createdAt`), or by position when the names do not match;
+  - a record: every component is matched to a selected field by name (`created_at`
+    or an alias → `createdAt`). A component without a field of that name fails when
+    the query is built, and the message lists every unmatched component and every
+    unused field. Rename a field with `.as("name")`, or map by position explicitly
+    with `c.mapByPosition().select(..)`. Values are never assigned by position
+    silently, so reordering the select list cannot put them into the wrong components;
   - `Row`;
   - a single column's type, e.g. `Long.class` for `c.select(count())`.
 
@@ -112,6 +122,18 @@ style, and everything applies equally inside `createContribution`.
 | `selectCount()` | `count(*)` as `Long` |
 | `selectOne()` | `1`, for `exists(..)` |
 
+`col(field)` returns the field itself, so select lists can be written as in 2.x. It keeps
+the field's type and works in both styles and in `returning(..)`:
+
+```java
+Select1<String> names = select(col(USERS.NAME)).from(USERS);                        // same as select(USERS.NAME)
+String name = QL.createContribution(String.class, USERS, (c, b) -> c
+        .select(col(USERS.NAME))
+        .where(eq(USERS.ID, id)))
+        .fetchOne();
+UUID id = insertInto(USERS).set(USERS.NAME, "Ada").returning(col(USERS.ID)).fetchOne();
+```
+
 ```java
 List<String> names = select(USERS.NAME).from(USERS).fetch();
 
@@ -136,7 +158,7 @@ row of each group; add a matching `ORDER BY`.
 select(USERS.NAME, ORDERS.TOTAL)
     .from(USERS)
     .join(ORDERS).on(ORDERS.USER_ID.eq(USERS.ID))           // JOIN … ON …
-    .leftJoin(ORDERS).onKey(ORDERS.FK_USER)                   // along a generated foreign key
+    .leftJoin(ORDERS).onKey(ORDERS.FK_USER_ID)                   // along a generated foreign key
     .rightJoin(t).on(..)  .fullJoin(t).on(..)
     .join(t).using(t.ID)                                      // JOIN t USING (id)
     .crossJoin(t)  .naturalJoin(t)
@@ -151,7 +173,7 @@ select(USERS.NAME, manager.NAME).from(USERS).join(manager).on(manager.ID.eq(USER
 ```
 
 Joins that a filter needs only sometimes: `joinIf(flag, ORDERS, () -> ORDERS.USER_ID.eq(USERS.ID))`,
-`joinIf(flag, ORDERS, ORDERS.FK_USER)` and the same with `leftJoinIf`. The condition
+`joinIf(flag, ORDERS, ORDERS.FK_USER_ID)` and the same with `leftJoinIf`. The condition
 supplier is only called if the flag is set.
 
 ### WHERE

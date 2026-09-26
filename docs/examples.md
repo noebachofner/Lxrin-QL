@@ -1,6 +1,6 @@
 # Examples
 
-Recipes for common tasks. They assume `import static ch.lxrin.ql.dsl.Dsl.*;`,
+Recipes for common tasks. They assume `import static ch.lxrin.ql.QL.*;`,
 `import static com.example.db.Tables.*;` and tables generated from:
 
 ```sql
@@ -240,7 +240,7 @@ select(CUSTOMER.COUNTRY,
        count().filter(ORDERS.STATUS.eq("OPEN")),
        sum(ORDERS.TOTAL).filter(ORDERS.STATUS.eq("PAID")))
     .from(CUSTOMER)
-    .join(ORDERS).onKey(ORDERS.FK_CUSTOMER)
+    .join(ORDERS).onKey(ORDERS.FK_CUSTOMER_ID)
     .groupBy(CUSTOMER.COUNTRY)
     .fetch();
 ```

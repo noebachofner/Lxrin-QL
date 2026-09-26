@@ -1,0 +1,38 @@
+{
+  "format": 1,
+  "migrations": "sha256:6b6df44f017762df667e2373588c5dc4b9546e613b4ccddec2003b3926275dea",
+  "enums": [
+    {"schema": "public", "name": "blog_status", "labels": ["draft", "published"]}
+  ],
+  "tables": [
+    {
+      "schema": "public", "name": "blog_authors", "kind": "r",
+      "columns": [
+        {"name": "id", "type": "uuid", "typeSchema": "pg_catalog", "typeKind": "b", "notNull": true, "hasDefault": false, "identity": "", "generated": ""},
+        {"name": "name", "type": "text", "typeSchema": "pg_catalog", "typeKind": "b", "notNull": true, "hasDefault": false, "identity": "", "generated": ""},
+        {"name": "email", "type": "text", "typeSchema": "pg_catalog", "typeKind": "b", "notNull": true, "hasDefault": false, "identity": "", "generated": ""}
+      ],
+      "primaryKey": {"name": "blog_authors_pkey", "columns": ["id"]},
+      "uniqueKeys": [
+        {"name": "blog_authors_email_key", "columns": ["email"]}
+      ],
+      "foreignKeys": []
+    },
+    {
+      "schema": "public", "name": "blog_posts", "kind": "r",
+      "columns": [
+        {"name": "id", "type": "int8", "typeSchema": "pg_catalog", "typeKind": "b", "notNull": true, "hasDefault": false, "identity": "d", "generated": "", "sequence": "public.blog_posts_id_seq"},
+        {"name": "author_id", "type": "uuid", "typeSchema": "pg_catalog", "typeKind": "b", "notNull": true, "hasDefault": false, "identity": "", "generated": ""},
+        {"name": "reviewer_id", "type": "uuid", "typeSchema": "pg_catalog", "typeKind": "b", "notNull": false, "hasDefault": false, "identity": "", "generated": ""},
+        {"name": "title", "type": "text", "typeSchema": "pg_catalog", "typeKind": "b", "notNull": true, "hasDefault": false, "identity": "", "generated": ""},
+        {"name": "status", "type": "blog_status", "typeSchema": "public", "typeKind": "e", "notNull": true, "hasDefault": true, "identity": "", "generated": ""}
+      ],
+      "primaryKey": {"name": "blog_posts_pkey", "columns": ["id"]},
+      "uniqueKeys": [],
+      "foreignKeys": [
+        {"name": "blog_posts_author_id_fkey", "columns": ["author_id"], "referencedSchema": "public", "referencedTable": "blog_authors", "referencedColumns": ["id"]},
+        {"name": "blog_posts_reviewer_id_fkey", "columns": ["reviewer_id"], "referencedSchema": "public", "referencedTable": "blog_authors", "referencedColumns": ["id"]}
+      ]
+    }
+  ]
+}

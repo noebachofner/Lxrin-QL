@@ -12,6 +12,28 @@ bind parameter.
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 ```java
+String name = QL.createContribution(String.class, USERS, (c, b) -> c
+        .select(col(USERS.USERNAME))
+        .where(and(
+                eq(USERS.KEYCLOAK_ID, b.setString(keycloakId)),
+                in(USERS.LOCALE, "de", "en"),
+                isNull(USERS.DELETED_AT))))
+        .fetchOne();
+
+long changed = QL.createUpdate(USERS, (c, b) -> c
+        .set(USERS.EMAIL, b.setString(email))
+        .where(eq(USERS.ID, b.setUuid(id))))
+        .execute();
+```
+
+`ch.lxrin.ql.QL` is the entry point: type `QL.` to find every statement, condition and
+function. With `import static ch.lxrin.ql.QL.*` you can write `createContribution(..)`,
+`eq(..)` or `count()` without the prefix, as in the rest of this page.
+(`ch.lxrin.ql.dsl.Dsl`, the entry point of 3.0 and 3.1, has the same methods and stays.)
+`QL` runs on the default `QueryContext`, which `lxrin-ql-spring` registers, so it works in
+any Spring bean without injection.
+
+```java
 User user = new User();
 user.setId(BEANS.get(UserRepository.class).createKey());      // UUID v7 or nextval, depending on the key
 user.setName("Test");
@@ -55,13 +77,14 @@ not, and neither does `USERS.EMAIL.plus(1)`.
 
 ## Modules
 
-| Artifact (`ch.lxrin:…:3.1.0`) | What it is | Dependencies |
+| Artifact (`ch.lxrin:…:3.2.0`) | What it is | Dependencies |
 |---|---|---|
 | `lxrin-ql-core` | DSL, types, runtime, entities, repositories, `BEANS`, extension points | none |
 | `lxrin-ql-codegen` | Reads the schema from PostgreSQL and generates tables, rows, entities and repositories; CLI | PostgreSQL JDBC, Testcontainers, Flyway |
 | `lxrin-ql-gradle-plugin` | Gradle plugin `ch.lxrin.ql.codegen` | codegen |
 | `lxrin-ql-maven-plugin` | Maven plugin, goal `generate` | codegen |
 | `lxrin-ql-spring` | Spring Boot 4 auto-configuration | core (Spring provided by the application) |
+| `lxrin-ql-audit` | Audit history in `<table>_aud`, one revision per transaction, compatible with Hibernate Envers ([docs](docs/audit.md)) | core |
 | `lxrin-ql-test` | SQL assertions, mock executor, PostgreSQL JUnit extension, ArchUnit rules | core, JUnit |
 | `lxrin-ql-bom` | Aligns the versions of all modules | – |
 
@@ -109,15 +132,29 @@ not, and neither does `USERS.EMAIL.plus(1)`.
 
 LxrinQL requires **Java 17+** and **PostgreSQL 13+**. The code generator starts a
 disposable PostgreSQL with Docker (Testcontainers) and applies your Flyway
-migrations, so the build needs Docker. Alternatively, point the generator at an
+migrations. Without Docker, it generates from a committed
+[schema snapshot](docs/code-generation.md#without-docker), or you can point it at an
 existing database.
+
+**Gradle plugin repositories.** The plugin `ch.lxrin.ql.codegen` is on Maven Central.
+Until it is also available on the Gradle Plugin Portal, add Maven Central to the plugin
+repositories in `settings.gradle.kts` or `settings.gradle`:
+
+```kotlin
+pluginManagement {
+    repositories {
+        gradlePluginPortal()
+        mavenCentral()
+    }
+}
+```
 
 **Gradle (Kotlin DSL)**
 
 ```kotlin
 plugins {
     java
-    id("ch.lxrin.ql.codegen") version "3.1.0"     // adds lxrin-ql-core to implementation
+    id("ch.lxrin.ql.codegen") version "3.2.0"     // adds lxrin-ql-core to implementation
 }
 
 lxrinQl {
@@ -129,11 +166,37 @@ lxrinQl {
 }
 
 dependencies {
-    implementation("ch.lxrin:lxrin-ql-spring:3.1.0")   // optional: Spring Boot 4
+    implementation("ch.lxrin:lxrin-ql-spring:3.2.0")   // optional: Spring Boot 4
     runtimeOnly("org.postgresql:postgresql:42.7.13")
-    testImplementation("ch.lxrin:lxrin-ql-test:3.1.0")
+    testImplementation("ch.lxrin:lxrin-ql-test:3.2.0")
 }
 ```
+
+**Gradle (Groovy DSL)**
+
+```groovy
+plugins {
+    id 'java'
+    id 'ch.lxrin.ql.codegen' version '3.2.0'       // adds lxrin-ql-core to implementation
+}
+
+lxrinQl {
+    packageName = 'com.example.db'
+    stripTablePrefixes = ['app_']                 // app_user → User
+    database {
+        flywayMigrations.from('src/main/resources/db/migration')
+    }
+}
+
+dependencies {
+    implementation 'ch.lxrin:lxrin-ql-spring:3.2.0'     // optional: Spring Boot 4
+    runtimeOnly 'org.postgresql:postgresql:42.7.13'
+    testImplementation 'ch.lxrin:lxrin-ql-test:3.2.0'
+}
+```
+
+The complete `lxrinQl { }` block in both DSLs is in
+[Code generation](docs/code-generation.md#gradle).
 
 **Maven**
 
@@ -142,7 +205,7 @@ dependencies {
     <dependency>
         <groupId>ch.lxrin</groupId>
         <artifactId>lxrin-ql-core</artifactId>
-        <version>3.1.0</version>
+        <version>3.2.0</version>
     </dependency>
 </dependencies>
 
@@ -151,7 +214,7 @@ dependencies {
         <plugin>
             <groupId>ch.lxrin</groupId>
             <artifactId>lxrin-ql-maven-plugin</artifactId>
-            <version>3.1.0</version>
+            <version>3.2.0</version>
             <executions>
                 <execution>
                     <goals><goal>generate</goal></goals>   <!-- bound to generate-sources -->
@@ -196,19 +259,20 @@ users.save(ada);                                        // UPDATE app_user SET n
 | Guide | Contents |
 |---|---|
 | [Getting started](docs/getting-started.md) | Set-up with Gradle or Maven, the first generated code, the first queries |
-| [Code generation](docs/code-generation.md) | Gradle plugin, Maven plugin, CLI; naming, forced types, enums, what is generated |
+| [Code generation](docs/code-generation.md) | Gradle plugin (Kotlin and Groovy DSL), Maven plugin, CLI; naming, forced types, enums, snapshots without Docker, what is generated |
 | [Queries](docs/queries.md) | The `createContribution` and `select` styles; `SELECT`, joins, grouping, windows, CTEs, set operations, locking, paging, `INSERT`/`UPDATE`/`DELETE`/upserts |
 | [Conditions](docs/conditions.md) | Every operator (static and fluent), optional filters, dynamic sorting, joins and PATCH updates |
 | [Fields and types](docs/expressions.md) | Typed fields and conditions, data types and converters, bind parameters, literals, raw SQL |
 | [Function reference](docs/functions.md) | The typed PostgreSQL function catalog |
 | [Entities and repositories](docs/entities-and-repositories.md) | Change tracking, `save`, `saveAll`, keys, finders, optimistic locking, `BEANS` |
 | [Execution](docs/execution.md) | `QueryContext`, transactions, streaming, errors, logging and metrics |
-| [Extension points](docs/extension-points.md) | Statement listeners, column conventions, table policies, custom types and functions, an audit history example |
+| [Extension points](docs/extension-points.md) | Statement listeners, column conventions, table policies, custom types and functions |
+| [Audit history](docs/audit.md) | `lxrin-ql-audit`: history tables, one revision per transaction, Spring properties, Hibernate Envers |
 | [Spring Boot](docs/spring.md) | Auto-configuration, `@Transactional`, repositories as beans, properties |
 | [Testing](docs/testing.md) | SQL assertions, mock executor, `@LxrinPostgresTest`, architecture rules |
 | [Examples](docs/examples.md) | Recipes: search forms, paging, reports, upserts, job queues, JSON, full-text search |
 | [Migration from 2.x](docs/migration-2-to-3.md) | Step-by-step migration, side by side with 2.x |
-| [Design](docs/design/3.0.md) | The design of 3.0 and its decisions; [3.1](docs/design/3.1.md): conditions and the `createContribution` style |
+| [Design](docs/design/3.0.md) | The design of 3.0 and its decisions; [3.1](docs/design/3.1.md): conditions and the `createContribution` style; [3.2](docs/design/3.2.md): integration fixes, snapshots, audit module |
 | [Releasing](docs/releasing.md) | Publishing to Maven Central and the Gradle Plugin Portal |
 | [Changelog](CHANGELOG.md) | Release notes |
 
@@ -219,8 +283,9 @@ users.save(ada);                                        // UPDATE app_user SET n
 ```
 
 This compiles all modules and runs the unit tests and the Testcontainers
-integration tests. The integration tests include example Gradle and Maven projects
-that use the plugins, so the build needs Docker and Maven.
+integration tests. The integration tests include example Gradle projects (Kotlin and
+Groovy DSL) and a Maven project that use the plugins, so the build needs Docker and
+Maven.
 
 ## License
 

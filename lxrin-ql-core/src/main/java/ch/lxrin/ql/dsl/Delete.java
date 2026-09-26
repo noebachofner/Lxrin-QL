@@ -18,7 +18,7 @@ public final class Delete<R> extends AbstractDml<R, Delete<R>> {
 
     private final DeleteStatement statement;
 
-    /** Creates the builder; use {@code Dsl.deleteFrom(..)} or {@code ctx.deleteFrom(..)}. */
+    /** Creates the builder; use {@code QL.deleteFrom(..)} or {@code ctx.deleteFrom(..)}. */
     public Delete(QueryContext context, Table<R> table) {
         super(context, table);
         this.statement = new DeleteStatement(table);

@@ -3,6 +3,7 @@ package ch.lxrin.ql.gradle;
 import org.gradle.api.Action;
 import org.gradle.api.file.ConfigurableFileCollection;
 import org.gradle.api.file.DirectoryProperty;
+import org.gradle.api.file.RegularFileProperty;
 import org.gradle.api.model.ObjectFactory;
 import org.gradle.api.provider.ListProperty;
 import org.gradle.api.provider.MapProperty;
@@ -39,7 +40,9 @@ public abstract class LxrinQlExtension {
         getSingularize().convention(true);
         getGenerateEntities().convention(true);
         getGenerateRepositories().convention(true);
+        getGenerateJavadoc().convention(true);
         getAddCoreDependency().convention(true);
+        getSchemaSource().convention("auto");
         database.getImage().convention("postgres:17-alpine");
     }
 
@@ -70,10 +73,16 @@ public abstract class LxrinQlExtension {
     /** Table constant overrides: table → constant. */
     public abstract MapProperty<String, String> getTableConstants();
 
+    /** Foreign key constant overrides: constraint (or {@code table.constraint}) → constant. */
+    public abstract MapProperty<String, String> getForeignKeyNames();
+
     /** PostgreSQL enums mapped to existing Java enums: type → class. */
     public abstract MapProperty<String, String> getEnumMappings();
 
-    /** Forced types as {@code tables|columns|sqlTypes|javaType|dataType}; use {@link #forcedType}. */
+    /**
+     * Forced types; use {@link #forcedType}, which also allows {@code |} in the patterns. Entries added
+     * directly as {@code tables|columns|sqlTypes|javaType|dataType} are still read.
+     */
     public abstract ListProperty<String> getForcedTypes();
 
     /** Whether entities are generated (default {@code true}). */
@@ -82,11 +91,30 @@ public abstract class LxrinQlExtension {
     /** Whether repositories are generated (default {@code true}). */
     public abstract Property<Boolean> getGenerateRepositories();
 
+    /** Whether generated classes contain Javadoc (default {@code true}); {@code false} leaves only the generated-file header. */
+    public abstract Property<Boolean> getGenerateJavadoc();
+
+    /** Whether the repository stubs contain Javadoc (default: {@link #getGenerateJavadoc()}). */
+    public abstract Property<Boolean> getStubJavadoc();
+
     /** Where hand-written repository subclasses are created once (default {@code src/main/java}). */
     public abstract DirectoryProperty getRepositoryStubs();
 
     /** Whether {@code ch.lxrin:lxrin-ql-core} of the plugin's version is added to {@code implementation} (default {@code true}). */
     public abstract Property<Boolean> getAddCoreDependency();
+
+    /**
+     * Where {@code generateLxrinQl} reads the schema from: {@code auto} (default: the database
+     * if a JDBC URL is set or Docker is available, otherwise the snapshot), {@code database}
+     * or {@code snapshot}.
+     */
+    public abstract Property<String> getSchemaSource();
+
+    /**
+     * The schema snapshot written by {@code lxrinQlSnapshot} and checked by
+     * {@code lxrinQlCheckSnapshot} (default {@code src/main/lxrinql/schema.json}).
+     */
+    public abstract RegularFileProperty getSnapshotFile();
 
     /** Returns the database settings. */
     @Nested
@@ -109,7 +137,7 @@ public abstract class LxrinQlExtension {
      * @param dataType Java expression of its DataType, e.g. {@code com.example.Types.USER_ID}
      */
     public void forcedType(String tables, String columns, String sqlTypes, String javaType, String dataType) {
-        getForcedTypes().add(String.join("|", tables, columns, sqlTypes, javaType, dataType));
+        getForcedTypes().add(String.join(GenerateLxrinQlTask.FORCED_TYPE_SEPARATOR, tables, columns, sqlTypes, javaType, dataType));
     }
 
     /** The database to read the schema from. */

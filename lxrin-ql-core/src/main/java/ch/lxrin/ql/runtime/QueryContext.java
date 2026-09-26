@@ -65,7 +65,7 @@ import java.util.stream.Stream;
  *         .build();
  * }</pre>
  *
- * <p>The static {@code Dsl.*} entry points and {@code BEANS} use the default
+ * <p>The static entry points {@code QL.*} and {@code Dsl.*} and {@code BEANS} use the default
  * context, set with {@link #setDefault(QueryContext)}.</p>
  */
 public final class QueryContext extends ArityContextBase {
@@ -160,7 +160,7 @@ public final class QueryContext extends ArityContextBase {
         return new QueryContext(toBuilder(), bypassed, Objects.requireNonNull(newOrigin, "origin"));
     }
 
-    /** Sets the context used by the static {@code Dsl.*} entry points and {@code BEANS}; {@code null} clears it. */
+    /** Sets the context used by the static entry points {@code QL.*} and {@code Dsl.*} and {@code BEANS}; {@code null} clears it. */
     public static void setDefault(QueryContext context) {
         defaultContext = context;
     }
@@ -233,7 +233,7 @@ public final class QueryContext extends ArityContextBase {
         return pipeline.executeOther(new OtherStatement(statement));
     }
 
-    /** {@code createContribution} on this context; see {@link ch.lxrin.ql.dsl.Dsl#createContribution(Class, Table, BiFunction)}. */
+    /** {@code createContribution} on this context; see {@link ch.lxrin.ql.dsl.Statements#createContribution(Class, Table, BiFunction)}. */
     public <T> Select<T> createContribution(Class<T> type, Table<?> table,
                                             BiFunction<SelectScope<T>, Binds, ? extends Select<T>> body) {
         return Contributions.select(this, type, table, body);
@@ -542,9 +542,28 @@ public final class QueryContext extends ArityContextBase {
             return this;
         }
 
+        /** Removes all statement listeners, e.g. in {@code ctx.derive(..)} for writes that must not be intercepted. */
+        public Builder clearListeners() {
+            listeners.clear();
+            return this;
+        }
+
+        /** Removes all column conventions, e.g. for an audit listener that stores rows exactly as they are. */
+        public Builder clearConventions() {
+            conventions.clear();
+            return this;
+        }
+
+        /** Removes all table policies. */
+        public Builder clearPolicies() {
+            policies.clear();
+            return this;
+        }
+
         /**
          * Enables optimistic locking through a numeric column with this name:
-         * entity updates check and increment it, bulk updates increment it.
+         * entity updates check and increment it, bulk updates increment it;
+         * {@code null} turns it off.
          */
         public Builder versionColumn(String column) {
             this.versionColumn = column;

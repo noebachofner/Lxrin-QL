@@ -73,6 +73,11 @@ class CodeGeneratorTest {
     @Test
     void generatedCodeCompiles() throws IOException {
         generate();
+        compile(out);
+    }
+
+    /** Compiles the sources in {@code out/java} and {@code out/stubs} with all lint and doclint warnings as errors. */
+    static void compile(Path out) throws IOException {
         List<Path> sources = new ArrayList<>();
         try (Stream<Path> s = Stream.concat(Files.walk(out.resolve("java")), Files.walk(out.resolve("stubs")))) {
             s.filter(p -> p.toString().endsWith(".java")).forEach(sources::add);

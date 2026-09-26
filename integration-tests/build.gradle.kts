@@ -17,11 +17,15 @@ dependencies {
     testImplementation(libs.flyway.postgresql)
     testImplementation(gradleTestKit())
     testImplementation(project(":lxrin-ql-spring"))
+    testImplementation(project(":lxrin-ql-audit"))
     testImplementation(platform(libs.spring.boot.dependencies))
     testImplementation(libs.spring.boot.starter.jdbc)
     testImplementation(libs.spring.boot.starter.jackson)
     testImplementation(libs.spring.boot.micrometer.observation)
     testImplementation(libs.spring.boot.test)
+    testImplementation(libs.spring.security.core)
+    testImplementation(libs.hibernate.core)
+    testImplementation(libs.hibernate.envers)
     testRuntimeOnly(libs.junit.launcher)
     codegen(project(":lxrin-ql-codegen"))
 }
@@ -68,6 +72,8 @@ tasks.test {
     publishedModules.forEach { dependsOn("$it:publishAllPublicationsToIntegrationTestRepository") }
     inputs.dir("consumers").withPathSensitivity(PathSensitivity.RELATIVE)
     systemProperty("lxrin.consumers", layout.projectDirectory.dir("consumers").asFile.absolutePath)
+    systemProperty("lxrin.root", rootProject.layout.projectDirectory.asFile.absolutePath)
+    inputs.file(rootProject.layout.projectDirectory.file(".github/scripts/check-plugin-portal.sh"))
     systemProperty("lxrin.repo", rootProject.layout.buildDirectory.dir("it-repo").get().asFile.absolutePath)
     // outside build/ so that "clean" does not force Maven to download its plugins again
     systemProperty("lxrin.mavenLocalRepo", rootProject.layout.projectDirectory.dir(".gradle/it-m2").asFile.absolutePath)

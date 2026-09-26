@@ -33,10 +33,24 @@ CREATE TABLE app_user (
 
 **Gradle**
 
+Until the plugin is on the Gradle Plugin Portal, add Maven Central to the plugin
+repositories in `settings.gradle.kts` (or `settings.gradle`, same content):
+
+```kotlin
+pluginManagement {
+    repositories {
+        gradlePluginPortal()
+        mavenCentral()
+    }
+}
+```
+
+Kotlin DSL (`build.gradle.kts`):
+
 ```kotlin
 plugins {
     java
-    id("ch.lxrin.ql.codegen") version "3.1.0"
+    id("ch.lxrin.ql.codegen") version "3.2.0"
 }
 
 lxrinQl {
@@ -50,6 +64,28 @@ lxrinQl {
 
 dependencies {
     runtimeOnly("org.postgresql:postgresql:42.7.13")
+}
+```
+
+Groovy DSL (`build.gradle`):
+
+```groovy
+plugins {
+    id 'java'
+    id 'ch.lxrin.ql.codegen' version '3.2.0'
+}
+
+lxrinQl {
+    packageName = 'com.example.db'
+    stripTablePrefixes = ['app_']
+    tableConstants = [app_user: 'USERS']
+    database {
+        flywayMigrations.from('src/main/resources/db/migration')
+    }
+}
+
+dependencies {
+    runtimeOnly 'org.postgresql:postgresql:42.7.13'
 }
 ```
 
@@ -89,8 +125,12 @@ and joins `@Transactional`. See [Spring Boot](spring.md).
 
 ## 6. Write and read data
 
+`ch.lxrin.ql.QL` is the entry point: type `QL.` in the IDE to find every statement,
+condition and function. With `import static ch.lxrin.ql.QL.*` you can leave out the
+prefix, e.g. `createContribution(..)` instead of `QL.createContribution(..)`.
+
 ```java
-import static ch.lxrin.ql.dsl.Dsl.*;
+import static ch.lxrin.ql.QL.*;
 import static com.example.db.Tables.*;
 
 UserRepository users = BEANS.get(UserRepository.class);
@@ -105,7 +145,7 @@ ada.setName("Ada Lovelace");
 users.save(ada);                         // UPDATE of the changed column only
 
 record UserSummary(UUID id, String name, String email) {}
-List<UserSummary> gmail = createContribution(UserSummary.class, USERS, (c, b) -> c
+List<UserSummary> gmail = QL.createContribution(UserSummary.class, USERS, (c, b) -> c
         .select(USERS.ID, USERS.NAME, USERS.EMAIL)
         .where(USERS.EMAIL.endsWith("@gmail.com"), USERS.DELETED_AT.isNull())
         .orderBy(USERS.NAME.asc()))

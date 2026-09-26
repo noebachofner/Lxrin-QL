@@ -38,7 +38,7 @@ ctx.withOrigin(Origin.repository("Report.monthly"))   // origin reported to list
 `ctx.select(..)`, `ctx.insertInto(..)`, `ctx.update(..)`, `ctx.deleteFrom(..)`,
 `ctx.truncate(..)` and `ctx.selectFrom(..)` create statements attached to `ctx`.
 
-The static `Dsl.*` methods create statements that run on `QueryContext.getDefault()`,
+The static `QL.*` methods (and the same methods of `Dsl`) create statements that run on `QueryContext.getDefault()`,
 set with `QueryContext.setDefault(ctx)` (Spring does this). A statement can also be
 attached later: `select(..).attach(ctx)`.
 
@@ -86,7 +86,7 @@ carry the failing SQL, the bind values (sensitive values redacted) and the SQLST
 | Exception | When |
 |---|---|
 | `UniqueViolationException` | 23505; `constraint()` returns the generated key, e.g. `USERS.UK_EMAIL` |
-| `ForeignKeyViolationException` | 23503; `isViolated(ORDERS.FK_USER)` |
+| `ForeignKeyViolationException` | 23503; `isViolated(ORDERS.FK_USER_ID)` |
 | `NotNullViolationException`, `CheckViolationException`, `ExclusionViolationException` | 23502, 23514, 23P01 |
 | `SerializationFailureException`, `DeadlockException` | 40001, 40P01 (both `TransientDataAccessException`: retry) |
 | `LockNotAvailableException`, `QueryTimeoutException` | 55P03 (`NOWAIT`, `lock_timeout`), 57014 |

@@ -14,8 +14,9 @@ import java.util.function.Supplier;
  * <pre>{@code
  * QueryContext.builder()
  *     .convention(ColumnConventions.createdAt("created_at", clock))
- *     .convention(ColumnConventions.onInsert("created_by", String.class, c -> currentUser.get()))
+ *     .convention(ColumnConventions.createdBy("created_by", UUID.class, currentUser::id))
  *     .convention(ColumnConventions.updatedAt("updated_at", clock))
+ *     .convention(ColumnConventions.updatedBy("updated_by", UUID.class, currentUser::id))
  * }</pre>
  */
 public final class ColumnConventions {
@@ -51,6 +52,19 @@ public final class ColumnConventions {
     /** {@code updated_at}-style column set on insert and update from a clock. */
     public static ColumnConvention<Instant> updatedAt(String column, Clock clock) {
         return onInsertAndUpdate(column, Instant.class, c -> clock.instant());
+    }
+
+    /**
+     * {@code created_by}-style column set on insert to the current user, e.g. the user's UUID
+     * from the security context. The supplier may return {@code null}, e.g. for system jobs.
+     */
+    public static <T> ColumnConvention<T> createdBy(String column, Class<T> type, Supplier<? extends T> user) {
+        return onInsert(column, type, c -> user.get());
+    }
+
+    /** {@code updated_by}-style column set on insert and update to the current user, like {@link #updatedAt}. */
+    public static <T> ColumnConvention<T> updatedBy(String column, Class<T> type, Supplier<? extends T> user) {
+        return onInsertAndUpdate(column, type, c -> user.get());
     }
 
     private static <T> ColumnConvention<T> of(String column, Class<T> type, ColumnConvention.When when,

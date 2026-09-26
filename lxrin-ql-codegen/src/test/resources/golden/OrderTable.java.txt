@@ -47,7 +47,7 @@ public final class OrderTable extends Table<OrderRow> {
     /** The primary key {@code orders_pkey}. */
     public final PrimaryKey<Long> PK = primaryKey("orders_pkey", ID, KeyStrategy.sequence("sales.orders_id_seq"));
     /** The foreign key {@code orders_user_id_fkey} to {@code app_users}. */
-    public final ForeignKey FK_USER = foreignKey("orders_user_id_fkey", List.of(USER_ID), null, "app_users", List.of("id"));
+    public final ForeignKey FK_USER_ID = foreignKey("orders_user_id_fkey", List.of(USER_ID), null, "app_users", List.of("id"));
 
     /**
      * Creates the table with an alias.

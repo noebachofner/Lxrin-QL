@@ -31,15 +31,17 @@ class SchemaReaderIT {
                 "CREATE TABLE app.measure (at date NOT NULL, v numeric) PARTITION BY RANGE (at);",
                 "CREATE TABLE app.measure_2024 PARTITION OF app.measure FOR VALUES FROM ('2024-01-01') TO ('2025-01-01');",
                 "CREATE MATERIALIZED VIEW app.item_count AS SELECT count(*) AS n FROM app.item;",
-                "COMMENT ON COLUMN app.item.code IS 'Item code';"));
+                "COMMENT ON COLUMN app.item.code IS 'Item code';",
+                "CREATE TABLE app.app_user (id uuid PRIMARY KEY, created_by uuid REFERENCES app.app_user (id),",
+                "  updated_by uuid REFERENCES app.app_user (id));"));
         CodegenConfig config = new CodegenConfig().packageName("com.example.app").schemas(List.of("app")).defaultSchema("app")
                 .outputDirectory(dir.resolve("out"));
         try (DatabaseProvisioner db = DatabaseProvisioner.testcontainer("postgres:17-alpine", List.of(migrations), List.of());
              Connection con = db.connect()) {
             SchemaModel model = SchemaReader.read(con, config);
             List<String> names = model.tables().stream().map(SchemaModel.TableModel::name).toList();
-            assertEquals(List.of("item", "item_count", "measure", "part"), names);
-            SchemaModel.TableModel item = model.tables().get(0);
+            assertEquals(List.of("app_user", "item", "item_count", "measure", "part"), names);
+            SchemaModel.TableModel item = model.tables().get(1);
             assertEquals("app.item_id_seq", item.columns().get(0).sequence(), "serial column gets its sequence");
             SchemaModel.ColumnModel mail = item.columns().get(2);
             assertEquals("text", mail.type(), "domain resolved to its base type");
@@ -50,9 +52,9 @@ class SchemaReaderIT {
             assertEquals("a", item.columns().get(6).identity());
             assertEquals("Item code", item.columns().get(1).comment());
             assertEquals(List.of("code"), item.uniqueKeys().get(0).columns());
-            assertEquals("m", model.tables().get(1).kind());
-            assertEquals(List.of("item_id", "n"), model.tables().get(3).primaryKey().columns());
-            assertEquals("item", model.tables().get(3).foreignKeys().get(0).referencedTable());
+            assertEquals("m", model.tables().get(2).kind());
+            assertEquals(List.of("item_id", "n"), model.tables().get(4).primaryKey().columns());
+            assertEquals("item", model.tables().get(4).foreignKeys().get(0).referencedTable());
             assertEquals(List.of("low", "high"), model.enums().get(0).labels());
 
             CodeGenerator.Result result = CodeGenerator.generate(con, config);
@@ -62,6 +64,9 @@ class SchemaReaderIT {
             assertTrue(table.contains("arrayColumn(\"levels\", Level.TYPE.array()"), table);
             assertTrue(table.contains("Column.IDENTITY_ALWAYS"), table);
             assertTrue(Files.readString(dir.resolve("out/com/example/app/ItemCountTable.java")).contains("return true;"));
+            String users = Files.readString(dir.resolve("out/com/example/app/AppUserTable.java"));
+            assertTrue(users.contains("ForeignKey FK_CREATED_BY = foreignKey(\"app_user_created_by_fkey\""), users);
+            assertTrue(users.contains("ForeignKey FK_UPDATED_BY = foreignKey(\"app_user_updated_by_fkey\""), users);
         }
     }
 }

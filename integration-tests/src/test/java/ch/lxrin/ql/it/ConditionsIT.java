@@ -301,7 +301,7 @@ class ConditionsIT {
         boolean onlyWithAssets = true;
         List<Owned> owned = ctx.createContribution(Owned.class, USERS, (c, b) -> c
                         .select(USERS.NAME, ASSET.NAME.as("asset_name"))
-                        .joinIf(onlyWithAssets, ASSET, ASSET.FK_USER)
+                        .joinIf(onlyWithAssets, ASSET, ASSET.FK_OWNER_ID)
                         .where(USERS.NAME.in(b.setList("Ada", "Alan")), ASSET.VALUE.ge(b.setBigDecimal(new BigDecimal("1"))))
                         .orderBy(USERS.NAME.asc()))
                 .fetch();

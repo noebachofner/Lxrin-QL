@@ -9,9 +9,9 @@ depth.
 Every operator exists in two forms that render the same SQL with the same binds:
 
 ```java
-import static ch.lxrin.ql.dsl.Dsl.*;          // includes ch.lxrin.ql.dsl.Conditions
+import static ch.lxrin.ql.QL.*;              // includes ch.lxrin.ql.dsl.Conditions
 
-eq(USERS.EMAIL, email)                          // static function
+QL.eq(USERS.EMAIL, email)                       // static function; eq(..) with the static import
 USERS.EMAIL.eq(email)                           // field method
 ```
 
@@ -240,7 +240,7 @@ Conditions.orBuilder(..)                          // joins with OR
 | Lists of conditions | `.where(List<Condition>)`, `.having(List<Condition>)` |
 | Dynamic sorting | `.orderBy(List<SortField<?>>)` |
 | Sort parameter from a request | `.orderBy(Sorts.from("username,desc", Map.of("username", USERS.NAME)))` |
-| Optional joins | `.joinIf(flag, ASSET, () -> ASSET.OWNER_ID.eq(USERS.ID))`, `.leftJoinIf(flag, ASSET, ASSET.FK_USER)` |
+| Optional joins | `.joinIf(flag, ASSET, () -> ASSET.OWNER_ID.eq(USERS.ID))`, `.leftJoinIf(flag, ASSET, ASSET.FK_OWNER_ID)` |
 | PATCH updates | `.setIf(flag, USERS.NAME, name)`, `.setIfPresent(USERS.EMAIL, Optional<String>)` |
 | All rows on purpose | `.allRows()` / `c.all()` |
 

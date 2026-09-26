@@ -1,18 +1,29 @@
 # Publishes all modules to Maven Central and the Gradle plugin to the Gradle Plugin Portal when a
-# GitHub release is published. The release tag must match the version in gradle.properties (e.g. v3.0.0).
+# GitHub release is published. The release tag must match the version in gradle.properties (e.g. v3.2.0).
+# Run it manually (workflow_dispatch) with an existing tag to publish only the Gradle plugin again, e.g. after
+# the portal approved the plugin.
 name: Publish
 
 on:
   release:
     types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing release tag whose Gradle plugin is published to the Plugin Portal again (e.g. v3.2.0)
+        required: true
 
 jobs:
   publish:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+    env:
+      RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
 
       - uses: actions/setup-java@v4
         with:
@@ -24,15 +35,28 @@ jobs:
       - name: Check tag matches version
         run: |
           version=$(grep '^version=' gradle.properties | cut -d= -f2)
-          if [ "${GITHUB_REF_NAME#v}" != "$version" ]; then
-            echo "Tag $GITHUB_REF_NAME does not match version $version in gradle.properties"
+          if [ "${RELEASE_TAG#v}" != "$version" ]; then
+            echo "Tag $RELEASE_TAG does not match version $version in gradle.properties"
+            exit 1
+          fi
+          echo "VERSION=$version" >> "$GITHUB_ENV"
+
+      - name: Check Gradle Plugin Portal credentials
+        env:
+          GRADLE_PUBLISH_KEY: ${{ secrets.GRADLE_PUBLISH_KEY }}
+          GRADLE_PUBLISH_SECRET: ${{ secrets.GRADLE_PUBLISH_SECRET }}
+        run: |
+          if [ -z "$GRADLE_PUBLISH_KEY" ] || [ -z "$GRADLE_PUBLISH_SECRET" ]; then
+            echo "::error::The secrets GRADLE_PUBLISH_KEY and GRADLE_PUBLISH_SECRET must be set (docs/releasing.md)"
             exit 1
           fi
 
       - name: Build and test
+        if: github.event_name == 'release'
         run: ./gradlew build
 
       - name: Publish to Maven Central
+        if: github.event_name == 'release'
         run: ./gradlew publishToMavenCentral
         env:
           ORG_GRADLE_PROJECT_mavenCentralUsername: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
@@ -41,9 +65,17 @@ jobs:
           ORG_GRADLE_PROJECT_signingInMemoryKeyPassword: ${{ secrets.SIGNING_KEY_PASSWORD }}
 
       - name: Publish the Gradle plugin to the Gradle Plugin Portal
-        run: ./gradlew :lxrin-ql-gradle-plugin:publishPlugins
+        run: |
+          set -o pipefail
+          ./gradlew :lxrin-ql-gradle-plugin:publishPlugins --info 2>&1 | tee publish-plugins.log
+          if grep -qi "approval" publish-plugins.log; then
+            echo "::warning::The Gradle Plugin Portal has not approved ch.lxrin.ql.codegen yet: $(grep -i -m1 approval publish-plugins.log)"
+          fi
         env:
           GRADLE_PUBLISH_KEY: ${{ secrets.GRADLE_PUBLISH_KEY }}
           GRADLE_PUBLISH_SECRET: ${{ secrets.GRADLE_PUBLISH_SECRET }}
           ORG_GRADLE_PROJECT_signingInMemoryKey: ${{ secrets.SIGNING_KEY }}
           ORG_GRADLE_PROJECT_signingInMemoryKeyPassword: ${{ secrets.SIGNING_KEY_PASSWORD }}
+
+      - name: Verify the plugin on the Gradle Plugin Portal
+        run: .github/scripts/check-plugin-portal.sh ch.lxrin.ql.codegen "$VERSION" 20 30

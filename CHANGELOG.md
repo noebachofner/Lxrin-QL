@@ -1,5 +1,193 @@
 # Changelog
 
+## 3.2.0
+
+Fixes and features from integrating 3.0 and 3.1 into a Spring Boot 4 project. Two changes
+are incompatible, and the [migration notes](docs/migration-2-to-3.md#from-31-to-32) cover
+both: the names of generated foreign key constants and record mapping by position.
+Everything else is additive. See the [3.2 design notes](docs/design/3.2.md).
+
+### Breaking: stable foreign key constant names
+
+A foreign key constant is now named after the key's own columns. In 3.1, the first key of a
+table was named after the referenced table and only later keys after their columns, so the
+name depended on the order in which PostgreSQL returned the keys. Adding a key could rename
+an existing constant and silently change what `onKey(..)` joined on.
+
+| Table and key | 3.1 | 3.2 |
+|---|---|---|
+| `app_user.created_by → app_user(id)` | `USERS.FK_USER` | `USERS.FK_CREATED_BY` |
+| `app_user.updated_by → app_user(id)` | `USERS.FK_UPDATED_BY` | `USERS.FK_UPDATED_BY` |
+| `orders.user_id → app_user(id)` | `ORDERS.FK_USER` | `ORDERS.FK_USER_ID` |
+| `asset.owner_id → app_user(id)` | `ASSET.FK_USER` | `ASSET.FK_OWNER_ID` |
+| `line(order_id, line_no) → order_line(..)` | `LINE.FK_ORDER_LINE` | `LINE.FK_ORDER_ID_LINE_NO` |
+
+```java
+// 3.1
+select(ORDERS.TOTAL).from(ORDERS).join(USERS).onKey(ORDERS.FK_USER)
+// 3.2
+select(ORDERS.TOTAL).from(ORDERS).join(USERS).onKey(ORDERS.FK_USER_ID)
+```
+
+- A name no longer depends on the order or the number of the other keys.
+- If two keys would get the same constant (two keys on the same columns), or a key would get
+  the constant of a column, code generation fails with an error that names both. It no
+  longer numbers them silently.
+- The new option `foreignKeyNames` (constraint name, or `table.constraint`, → constant) keeps
+  an old name or resolves a collision. It is available in `CodegenConfig.foreignKeyName(..)`,
+  the Gradle plugin, the Maven plugin (`<foreignKeyNames>`) and the CLI
+  (`--foreign-key-names`):
+
+  ```kotlin
+  lxrinQl {
+      foreignKeyNames.put("orders_user_id_fkey", "FK_USER")        // Groovy: foreignKeyNames = [orders_user_id_fkey: 'FK_USER']
+  }
+  ```
+
+### Breaking: no silent positional record mapping
+
+In 3.1, record results of `createContribution(Type.class, ..)` were matched by component
+name, with a fallback to **position** when the names did not match. So reordering a select
+list could silently put values into the wrong fields, which the 3.0 design had ruled out.
+
+- A record component without a field of the same name (column name or alias,
+  `snake_case` → `camelCase`) now fails when the statement is built. The error lists every
+  unmatched component and every unused field.
+- Positional mapping must be requested: `c.mapByPosition().select(..)`.
+- Constructor references (`fetch(UserSummary::new)`) are unchanged.
+
+```java
+record Pair(UUID a, String b) {}
+
+// 3.1: silently by position
+createContribution(Pair.class, USERS, (c, b) -> c.select(USERS.ID, USERS.NAME));
+// 3.2: IllegalArgumentException "… no field for component(s) a (UUID), b (String); unused field(s): id, name. …"
+createContribution(Pair.class, USERS, (c, b) -> c.mapByPosition().select(USERS.ID, USERS.NAME));
+createContribution(Pair.class, USERS, (c, b) -> c.select(USERS.ID.as("a"), USERS.NAME.as("b")));
+```
+
+### `QL` entry point
+
+- The new class `ch.lxrin.ql.QL` is the entry point. Typing `QL.` in the IDE finds every
+  statement, the `create…` style, every condition and every function:
+
+  ```java
+  String name = QL.createContribution(String.class, USERS, (c, b) -> c
+          .select(col(USERS.USERNAME))
+          .where(and(
+                  eq(USERS.KEYCLOAK_ID, b.setString(keycloakId)),
+                  in(USERS.LOCALE, "de", "en"),
+                  isNull(USERS.DELETED_AT))))
+          .fetchOne();
+  ```
+
+  With `import static ch.lxrin.ql.QL.*` the prefix can be left out.
+- `QL` and `Dsl` have exactly the same static methods. Both inherit them from the new
+  base class `ch.lxrin.ql.dsl.Statements`, which holds what `Dsl` declared in 3.1, and a
+  test checks that neither class declares methods of its own. `Dsl` stays for code
+  written against 3.0 and 3.1. Calls compiled against 3.1 still link, because static
+  methods resolve through the superclass.
+- `QL` runs on `QueryContext.getDefault()`, which `lxrin-ql-spring` registers, so
+  `QL.createContribution(..)` works in any Spring bean without injection.
+
+### `col(..)` in select and returning lists
+
+- `col(field)` (`<T> Field<T> col(Field<T>)`) returns the field itself. It was part of
+  the 3.1 spec but missing. `c.select(col(USERS.USERNAME))`, `select(col(..))` and
+  `returning(col(..))` compile and keep the column's type.
+
+### Code generation without Docker
+
+- `lxrinQlSnapshot` (Gradle), `lxrin-ql:snapshot` (Maven) and `--write-snapshot` (CLI)
+  write the schema model to a stable, diff-friendly JSON file that you commit (default
+  `src/main/lxrinql/schema.json`), together with a hash of the migrations.
+- `schemaSource = auto | database | snapshot`, default `auto`. `auto` uses the database
+  if a JDBC URL is set or Docker is available, and otherwise the snapshot, with a log
+  message saying which. If the migrations changed since the snapshot was written, you get
+  a warning.
+- `lxrinQlCheckSnapshot`, `lxrin-ql:check-snapshot` and `--check-snapshot` (exit status 1)
+  fail when the snapshot is out of date, for CI. With Docker they compare the complete
+  snapshot; without Docker they compare only the migrations hash.
+
+### Code generation without comments
+
+- `generateJavadoc` (default `true`) in `CodegenConfig`, the Gradle plugin, the Maven plugin
+  and the CLI (`--generate-javadoc`). With `false`, generated classes and repository stubs
+  contain no Javadoc and no other comments. Generated files keep the
+  `// Generated by LxrinQL codegen – do not edit.` header, which marks the files the
+  generator owns, and stubs get no header.
+- `stubJavadoc` (default: the value of `generateJavadoc`, CLI `--stub-javadoc`) controls
+  the stubs separately.
+
+### Audit history module `lxrin-ql-audit`
+
+The ISMS audit example from the integration tests is now an optional module. See
+[docs/audit.md](docs/audit.md).
+
+- `AuditListener` writes the full row of every insert, update and delete in an audited
+  table to `<table><suffix>` (default `_aud`), with the revision number and the revision
+  type (0 insert, 1 update, 2 delete). It covers repository writes (`save`, `saveAll`,
+  `delete`, `deleteAll`), the DSL, the `createInsert`/`createUpdate`/`createDelete`/
+  `createUpsert` style, upserts and soft deletes.
+- One revision row per transaction, by default `revision(id, revised_at, user_id)`.
+  Table and column names are configurable, and the user comes from an `AuditUser`
+  supplied by the application. A rollback leaves no history, and a rolled-back savepoint
+  discards its revision.
+- `AuditSettings`: tables by name or pattern, excluded columns per table (e.g.
+  `last_seen_at`), `storeDataAtDelete`, the audit table suffix.
+- The default layout is compatible with Hibernate Envers (`rev`, `revtype` 0/1/2, one
+  revision table). Integration tests show that Envers' `AuditReader` reads the rows
+  written by LxrinQL, and that LxrinQL continues a history written by Envers.
+- Spring Boot: with the module on the class path, `lxrin-ql-spring` creates the listener
+  from the `lxrin.ql.audit.*` properties as soon as `tables` or `table-patterns` is set,
+  with the revision user from an `AuditUser` bean.
+- The BOM includes the module.
+- `QueryContext.Builder` gains `clearListeners()`, `clearConventions()` and
+  `clearPolicies()` (for writes that must not be intercepted), and `versionColumn(null)`
+  turns the version column off.
+
+### User column conventions
+
+- `ColumnConventions.createdBy(column, type, Supplier<T>)` sets the column on insert, and
+  `ColumnConventions.updatedBy(column, type, Supplier<T>)` sets it on insert and update,
+  next to `createdAt`/`updatedAt`. The supplier may return `null`, for example for jobs
+  without a user.
+- [docs/spring.md](docs/spring.md#the-current-user-from-spring-security) shows how to read
+  the user's UUID from the Spring Security context. An integration test runs it.
+
+### Groovy DSL
+
+- Every Gradle example has a Groovy DSL equivalent, including the full `lxrinQl { }`
+  block with `database { }`, `forcedType(..)` and map properties such as
+  `tableConstants = [app_user: 'USERS']`.
+- A Groovy DSL consumer project in the integration tests generates code from a
+  committed schema snapshot without comments, checks the snapshot, and detects and fixes
+  a stale snapshot.
+
+### Gradle Plugin Portal
+
+- `ch.lxrin.ql.codegen` 3.0.1 and 3.1.0 were never on the Gradle Plugin Portal, although
+  `publishPlugins` succeeded. The portal accepted the first submission of the new plugin
+  ID for manual approval, which has not happened yet. A Gradle build that only uses the
+  portal cannot resolve the plugin (verified).
+- The `Publish` workflow now checks the portal credentials first. After publishing it
+  verifies that `https://plugins.gradle.org/m2/` itself serves the plugin marker of the
+  version, without following the portal's redirect to Maven Central, and fails
+  otherwise. A manual run (`workflow_dispatch`) with an existing tag publishes and
+  verifies only the Gradle plugin, e.g. after the approval.
+- Until the portal serves the plugin, add Maven Central to the plugin repositories; the
+  README and [docs/code-generation.md](docs/code-generation.md#gradle) show how:
+
+  ```kotlin
+  pluginManagement { repositories { gradlePluginPortal(); mavenCentral() } }
+  ```
+
+### Fixed
+
+- Gradle plugin: `forcedType(..)` patterns with `|` (e.g. `"author_id|reviewer_id"`, as
+  shown in the documentation) failed with "invalid forced type". Entries added directly
+  in the 3.1 form `tables|columns|sqlTypes|javaType|dataType` are still read.
+
 ## 3.1.0
 
 Conditions: complete, composable and dynamic, plus the `createContribution` style.

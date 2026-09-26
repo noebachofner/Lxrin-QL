@@ -27,7 +27,7 @@ import java.util.stream.Stream;
  *
  * <p>A builder is <em>attached</em> to a {@link QueryContext} when created
  * through {@code ctx.select(..)}; a builder from the static
- * {@code Dsl.select(..)} runs on {@link QueryContext#getDefault()}. The
+ * {@code QL.select(..)} runs on {@link QueryContext#getDefault()}. The
  * builder can be executed any number of times.</p>
  *
  * @param <R> the row type returned by {@link #fetch()}

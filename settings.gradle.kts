@@ -22,5 +22,6 @@ include(
     "lxrin-ql-maven-plugin",
     "lxrin-ql-spring",
     "lxrin-ql-test",
+    "lxrin-ql-audit",
     "integration-tests",
 )
