@@ -14,6 +14,20 @@ import static org.junit.jupiter.api.Assertions.*;
 class LxrinQlPluginTest {
 
     @Test
+    void javadocOptionsAreWired() {
+        Project project = ProjectBuilder.builder().build();
+        project.getPluginManager().apply("java");
+        project.getPluginManager().apply("ch.lxrin.ql.codegen");
+        LxrinQlExtension ext = project.getExtensions().getByType(LxrinQlExtension.class);
+        ext.getPackageName().set("com.example.db");
+        ext.getGenerateJavadoc().set(false);
+        ext.getStubJavadoc().set(true);
+        GenerateLxrinQlTask task = (GenerateLxrinQlTask) project.getTasks().getByName(LxrinQlPlugin.TASK_NAME);
+        assertFalse(task.getGenerateJavadoc().get());
+        assertTrue(task.getStubJavadoc().get());
+    }
+
+    @Test
     void registersTaskExtensionAndSourceDirectories() {
         Project project = ProjectBuilder.builder().build();
         project.getPluginManager().apply("java");
@@ -30,6 +44,8 @@ class LxrinQlPluginTest {
         assertEquals("postgres:17-alpine", task.getImage().get());
         assertEquals(java.util.List.of("t|c|uuid|com.x.Id|com.x.Types.ID"), task.getForcedTypes().get());
         assertEquals(java.util.Map.of("app_user_created_by_fkey", "FK_CREATOR"), task.getForeignKeyNames().get());
+        assertTrue(task.getGenerateJavadoc().get());
+        assertFalse(task.getStubJavadoc().isPresent(), "stubs follow generateJavadoc unless set");
         assertTrue(task.getRepositoryStubs().get().getAsFile().getPath().endsWith("src" + File.separator + "main" + File.separator + "java"));
 
         SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);

@@ -89,6 +89,15 @@ public abstract class GenerateLxrinQlTask extends DefaultTask {
     @Input
     public abstract Property<Boolean> getGenerateRepositories();
 
+    /** Whether generated classes contain Javadoc. */
+    @Input
+    public abstract Property<Boolean> getGenerateJavadoc();
+
+    /** Whether repository stubs contain Javadoc; defaults to {@link #getGenerateJavadoc()}. */
+    @Input
+    @Optional
+    public abstract Property<Boolean> getStubJavadoc();
+
     /** Docker image. */
     @Input
     public abstract Property<String> getImage();
@@ -139,6 +148,8 @@ public abstract class GenerateLxrinQlTask extends DefaultTask {
                 .singularize(getSingularize().get())
                 .generateEntities(getGenerateEntities().get())
                 .generateRepositories(getGenerateRepositories().get())
+                .generateJavadoc(getGenerateJavadoc().get())
+                .stubJavadoc(getStubJavadoc().getOrNull())
                 .outputDirectory(getOutputDirectory().get().getAsFile().toPath())
                 .resourcesDirectory(getResourcesDirectory().get().getAsFile().toPath());
         if (getRepositoryStubs().isPresent()) config.repositoryStubDirectory(getRepositoryStubs().get().getAsFile().toPath());

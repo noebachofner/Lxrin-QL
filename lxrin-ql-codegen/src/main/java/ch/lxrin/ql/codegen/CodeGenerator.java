@@ -502,7 +502,7 @@ public final class CodeGenerator {
                 + "public class " + entity + "Repository extends " + entity + "RepositoryBase {\n\n"
                 + "    /**\n     * Creates the repository.\n     *\n     * @param context the query context\n     */\n"
                 + "    public " + entity + "Repository(QueryContext context) {\n        super(context);\n    }\n}\n";
-        writeFile(file, source, false);
+        writeFile(file, config.stubJavadoc() ? source : Comments.strip(source), false);
         stubs.add(file);
     }
 
@@ -557,8 +557,8 @@ public final class CodeGenerator {
     // =========================================================================
 
     private String file(Imports imp, StringBuilder body) {
-        String resolved = body.toString();
-        return HEADER + "package " + config.packageName() + ";\n\n" + imp.block() + resolved;
+        String code = "package " + config.packageName() + ";\n\n" + imp.block() + body;
+        return HEADER + (config.generateJavadoc() ? code : Comments.strip(code));
     }
 
     private static String resolve(Imports imp, String expression) {

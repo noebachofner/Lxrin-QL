@@ -36,6 +36,9 @@ class GenerateMojoTest {
         f.dataType = "com.x.Types.USER_ID";
         set(mojo, "forcedTypes", List.of(f));
         assertNotNull(mojo.config());
+        set(mojo, "generateJavadoc", false);
+        set(mojo, "stubJavadoc", Boolean.TRUE);
+        assertNotNull(mojo.config());
         set(mojo, "foreignKeyNames", Map.of("app_user_created_by_fkey", "not valid"));
         assertThrows(IllegalArgumentException.class, mojo::config);
         set(mojo, "foreignKeyNames", null);

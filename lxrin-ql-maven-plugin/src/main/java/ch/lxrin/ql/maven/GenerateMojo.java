@@ -71,6 +71,10 @@ public class GenerateMojo extends AbstractMojo {
     private boolean generateEntities = true;
     /** Whether to generate repositories. */
     private boolean generateRepositories = true;
+    /** Whether generated classes contain Javadoc. */
+    private boolean generateJavadoc = true;
+    /** Whether repository stubs contain Javadoc; defaults to generateJavadoc. */
+    private Boolean stubJavadoc;
     /** Docker image of the disposable database. */
     private String image;
     /** Flyway migration directories. */
@@ -120,7 +124,9 @@ public class GenerateMojo extends AbstractMojo {
                 .resourcesDirectory(resourcesDirectory.toPath())
                 .singularize(singularize)
                 .generateEntities(generateEntities)
-                .generateRepositories(generateRepositories);
+                .generateRepositories(generateRepositories)
+                .generateJavadoc(generateJavadoc)
+                .stubJavadoc(stubJavadoc);
         if (repositoryStubDirectory != null) config.repositoryStubDirectory(repositoryStubDirectory.toPath());
         if (schemas != null && !schemas.isEmpty()) config.schemas(schemas);
         if (defaultSchema != null) config.defaultSchema(defaultSchema);

@@ -39,6 +39,7 @@ public abstract class LxrinQlExtension {
         getSingularize().convention(true);
         getGenerateEntities().convention(true);
         getGenerateRepositories().convention(true);
+        getGenerateJavadoc().convention(true);
         getAddCoreDependency().convention(true);
         database.getImage().convention("postgres:17-alpine");
     }
@@ -84,6 +85,12 @@ public abstract class LxrinQlExtension {
 
     /** Whether repositories are generated (default {@code true}). */
     public abstract Property<Boolean> getGenerateRepositories();
+
+    /** Whether generated classes contain Javadoc (default {@code true}); {@code false} leaves only the generated-file header. */
+    public abstract Property<Boolean> getGenerateJavadoc();
+
+    /** Whether the repository stubs contain Javadoc (default: {@link #getGenerateJavadoc()}). */
+    public abstract Property<Boolean> getStubJavadoc();
 
     /** Where hand-written repository subclasses are created once (default {@code src/main/java}). */
     public abstract DirectoryProperty getRepositoryStubs();

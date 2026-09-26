@@ -44,6 +44,8 @@ public class LxrinQlPlugin implements Plugin<Project> {
             t.getForcedTypes().set(ext.getForcedTypes());
             t.getGenerateEntities().set(ext.getGenerateEntities());
             t.getGenerateRepositories().set(ext.getGenerateRepositories());
+            t.getGenerateJavadoc().set(ext.getGenerateJavadoc());
+            t.getStubJavadoc().set(ext.getStubJavadoc());
             t.getImage().set(ext.getDatabase().getImage());
             t.getFlywayMigrations().from(ext.getDatabase().getFlywayMigrations());
             t.getSqlScripts().from(ext.getDatabase().getSqlScripts());

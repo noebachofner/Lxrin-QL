@@ -24,6 +24,7 @@ import java.util.Properties;
  * {@code default-schema}, {@code strip-prefixes}, {@code exclude}, {@code singularize},
  * {@code table-constants} and {@code entity-names} ({@code table=NAME,...}),
  * {@code foreign-key-names} ({@code constraint=FK_NAME,...}),
+ * {@code generate-javadoc} and {@code stub-javadoc} ({@code true} or {@code false}),
  * {@code enum-mappings} ({@code pg_enum=com.example.Enum,...}),
  * {@code forced-types} ({@code tableRegex|columnRegex|sqlTypeRegex|javaType|dataTypeExpression;...}),
  * {@code migrations} and {@code scripts} (comma-separated directories),
@@ -75,6 +76,8 @@ public final class Main {
         if (p.containsKey("default-schema")) config.defaultSchema(p.getProperty("default-schema"));
         if (p.containsKey("strip-prefixes")) config.stripTablePrefix(list(p.getProperty("strip-prefixes")).toArray(new String[0]));
         if (p.containsKey("exclude")) config.exclude(list(p.getProperty("exclude")).toArray(new String[0]));
+        if (p.containsKey("generate-javadoc")) config.generateJavadoc(bool(p, "generate-javadoc"));
+        if (p.containsKey("stub-javadoc")) config.stubJavadoc(bool(p, "stub-javadoc"));
         if (p.containsKey("singularize")) config.singularize(Boolean.parseBoolean(p.getProperty("singularize")));
         for (String[] pair : pairs(p.getProperty("table-constants"))) config.tableConstant(pair[0], pair[1]);
         for (String[] pair : pairs(p.getProperty("entity-names"))) config.entityName(pair[0], pair[1]);
@@ -99,6 +102,12 @@ public final class Main {
         List<Path> scripts = new ArrayList<>();
         for (String s : list(p.getProperty("scripts", ""))) scripts.add(Path.of(s));
         return DatabaseProvisioner.testcontainer(p.getProperty("image", "postgres:17-alpine"), migrations, scripts);
+    }
+
+    private static boolean bool(Properties p, String key) {
+        String v = p.getProperty(key).trim();
+        if (!v.equals("true") && !v.equals("false")) throw new IllegalArgumentException("--" + key + " must be true or false: " + v);
+        return Boolean.parseBoolean(v);
     }
 
     private static String required(Properties p, String key) {

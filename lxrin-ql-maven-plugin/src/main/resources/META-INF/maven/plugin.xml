@@ -155,6 +155,20 @@
           <description>Whether repositories are generated.</description>
         </parameter>
         <parameter>
+          <name>generateJavadoc</name>
+          <type>boolean</type>
+          <required>false</required>
+          <editable>true</editable>
+          <description>Whether generated classes contain Javadoc; false leaves only the generated-file header.</description>
+        </parameter>
+        <parameter>
+          <name>stubJavadoc</name>
+          <type>java.lang.Boolean</type>
+          <required>false</required>
+          <editable>true</editable>
+          <description>Whether repository stubs contain Javadoc (default: generateJavadoc).</description>
+        </parameter>
+        <parameter>
           <name>image</name>
           <type>java.lang.String</type>
           <required>false</required>
@@ -223,6 +237,8 @@
         <forcedTypes implementation="java.util.List"/>
         <generateEntities implementation="boolean" default-value="true"/>
         <generateRepositories implementation="boolean" default-value="true"/>
+        <generateJavadoc implementation="boolean" default-value="true">${lxrinql.generateJavadoc}</generateJavadoc>
+        <stubJavadoc implementation="java.lang.Boolean">${lxrinql.stubJavadoc}</stubJavadoc>
         <image implementation="java.lang.String" default-value="postgres:17-alpine"/>
         <flywayMigrations implementation="java.util.List"/>
         <sqlScripts implementation="java.util.List"/>
