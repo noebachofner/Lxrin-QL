@@ -38,11 +38,26 @@ class LxrinQlPluginTest {
             assertEquals("postgres:17-alpine", t.getImage().get());
         }
         assertEquals("verification", check.getGroup());
+        assertTrue(generate.getMustRunAfter().getDependencies(generate).contains(snapshot), "a new snapshot is written first");
+        assertTrue(check.getMustRunAfter().getDependencies(check).contains(snapshot));
 
         ext.getSchemaSource().set("snapshot");
         ext.getSnapshotFile().set(project.file("schema/lxrinql.json"));
         assertEquals("snapshot", generate.getSchemaSource().get());
         assertEquals(project.file("schema/lxrinql.json"), snapshot.getSnapshotFile().get().getAsFile());
+    }
+
+    @Test
+    void forcedTypePatternsMayContainAlternatives() {
+        Project project = ProjectBuilder.builder().build();
+        project.getPluginManager().apply("ch.lxrin.ql.codegen");
+        LxrinQlExtension ext = project.getExtensions().getByType(LxrinQlExtension.class);
+        ext.forcedType("posts", "author_id|reviewer_id", "uuid", "com.x.AuthorId", "com.x.Types.AUTHOR_ID");
+        ch.lxrin.ql.codegen.CodegenConfig.ForcedType f = GenerateLxrinQlTask.forcedType(ext.getForcedTypes().get().get(0));
+        assertEquals("author_id|reviewer_id", f.columns());
+        assertEquals("com.x.Types.AUTHOR_ID", f.dataType());
+        assertEquals("id", GenerateLxrinQlTask.forcedType("t|id|uuid|a.B|a.B.T").columns(), "3.1 entries are still read");
+        assertThrows(org.gradle.api.GradleException.class, () -> GenerateLxrinQlTask.forcedType("t|a|b|uuid|a.B|a.B.T"));
     }
 
     @Test
@@ -74,7 +89,7 @@ class LxrinQlPluginTest {
         assertEquals("com.example.db", task.getPackageName().get());
         assertEquals(java.util.List.of("public"), task.getSchemas().get());
         assertEquals("postgres:17-alpine", task.getImage().get());
-        assertEquals(java.util.List.of("t|c|uuid|com.x.Id|com.x.Types.ID"), task.getForcedTypes().get());
+        assertEquals(java.util.List.of("t\tc\tuuid\tcom.x.Id\tcom.x.Types.ID"), task.getForcedTypes().get());
         assertEquals(java.util.Map.of("app_user_created_by_fkey", "FK_CREATOR"), task.getForeignKeyNames().get());
         assertTrue(task.getGenerateJavadoc().get());
         assertFalse(task.getStubJavadoc().isPresent(), "stubs follow generateJavadoc unless set");

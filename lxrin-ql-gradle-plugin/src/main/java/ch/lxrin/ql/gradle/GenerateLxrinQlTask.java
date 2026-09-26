@@ -114,6 +114,18 @@ public abstract class GenerateLxrinQlTask extends AbstractLxrinQlTask {
     @Internal
     public abstract DirectoryProperty getRepositoryStubs();
 
+    /** Separates the parts of a forced type written by {@link LxrinQlExtension#forcedType}; patterns may contain {@code |}. */
+    static final String FORCED_TYPE_SEPARATOR = "\t";
+
+    static CodegenConfig.ForcedType forcedType(String spec) {
+        String[] p = spec.contains(FORCED_TYPE_SEPARATOR) ? spec.split(FORCED_TYPE_SEPARATOR, -1) : spec.split("\\|", -1);
+        if (p.length != 5) {
+            throw new GradleException("invalid forced type: " + spec.replace(FORCED_TYPE_SEPARATOR, ", ")
+                    + "; use forcedType(tables, columns, sqlTypes, javaType, dataType)");
+        }
+        return new CodegenConfig.ForcedType(p[0], p[1], p[2], p[3], p[4]);
+    }
+
     /** Runs the generator. */
     @TaskAction
     public void generate() {
@@ -132,11 +144,7 @@ public abstract class GenerateLxrinQlTask extends AbstractLxrinQlTask {
         getTableConstants().get().forEach(config::tableConstant);
         getForeignKeyNames().get().forEach(config::foreignKeyName);
         getEnumMappings().get().forEach(config::enumMapping);
-        for (String spec : getForcedTypes().get()) {
-            String[] p = spec.split("\\|");
-            if (p.length != 5) throw new GradleException("invalid forced type: " + spec);
-            config.forcedType(new CodegenConfig.ForcedType(p[0], p[1], p[2], p[3], p[4]));
-        }
+        for (String spec : getForcedTypes().get()) config.forcedType(forcedType(spec));
         try {
             Path snapshot = getSnapshotFile().isPresent() ? getSnapshotFile().get().getAsFile().toPath() : null;
             CodeGenerator.Result result = new SchemaSources().generate(config, SchemaSources.Source.parse(getSchemaSource().get()),

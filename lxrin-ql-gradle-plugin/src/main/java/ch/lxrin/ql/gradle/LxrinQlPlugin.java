@@ -55,6 +55,7 @@ public class LxrinQlPlugin implements Plugin<Project> {
             t.getSchemaSource().set(ext.getSchemaSource());
             t.getSnapshotFile().set(ext.getSnapshotFile());
             t.getSnapshotInput().from(ext.getSnapshotFile());
+            t.mustRunAfter(SNAPSHOT_TASK_NAME);
             t.getRepositoryStubs().set(ext.getRepositoryStubs());
             t.getOutputDirectory().set(project.getLayout().getBuildDirectory().dir("generated/sources/lxrinql/main/java"));
             t.getResourcesDirectory().set(project.getLayout().getBuildDirectory().dir("generated/resources/lxrinql/main"));
@@ -71,6 +72,7 @@ public class LxrinQlPlugin implements Plugin<Project> {
             t.setGroup("verification");
             t.setDescription("Fails if the LxrinQL schema snapshot does not match the migrations.");
             common(t, ext);
+            t.mustRunAfter(SNAPSHOT_TASK_NAME);
             t.getSnapshotFile().set(ext.getSnapshotFile());
             t.getSnapshotInput().from(ext.getSnapshotFile());
         });

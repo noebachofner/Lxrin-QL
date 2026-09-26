@@ -79,7 +79,10 @@ public abstract class LxrinQlExtension {
     /** PostgreSQL enums mapped to existing Java enums: type → class. */
     public abstract MapProperty<String, String> getEnumMappings();
 
-    /** Forced types as {@code tables|columns|sqlTypes|javaType|dataType}; use {@link #forcedType}. */
+    /**
+     * Forced types; use {@link #forcedType}, which also allows {@code |} in the patterns. Entries added
+     * directly as {@code tables|columns|sqlTypes|javaType|dataType} are still read.
+     */
     public abstract ListProperty<String> getForcedTypes();
 
     /** Whether entities are generated (default {@code true}). */
@@ -134,7 +137,7 @@ public abstract class LxrinQlExtension {
      * @param dataType Java expression of its DataType, e.g. {@code com.example.Types.USER_ID}
      */
     public void forcedType(String tables, String columns, String sqlTypes, String javaType, String dataType) {
-        getForcedTypes().add(String.join("|", tables, columns, sqlTypes, javaType, dataType));
+        getForcedTypes().add(String.join(GenerateLxrinQlTask.FORCED_TYPE_SEPARATOR, tables, columns, sqlTypes, javaType, dataType));
     }
 
     /** The database to read the schema from. */
