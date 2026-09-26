@@ -69,8 +69,12 @@ createUpsert(USERS, (c, b) -> c.set(USERS.ID, id).set(USERS.NAME, name)).execute
   `USERS.EMAIL.eq(email)` renders the same SQL as `USERS.EMAIL.eq(b.setString(email))`.
   `b.setX(null)` throws; use `b.setNull(type)`.
 - **The result type** is one of:
-  - a record: components are matched to the selected fields by name (`created_at`
-    or an alias → `createdAt`), or by position when the names do not match;
+  - a record: every component is matched to a selected field by name (`created_at`
+    or an alias → `createdAt`). A component without a field of that name fails when
+    the query is built, and the message lists every unmatched component and every
+    unused field. Rename a field with `.as("name")`, or map by position explicitly
+    with `c.mapByPosition().select(..)`. Values are never assigned by position
+    silently, so reordering the select list cannot put them into the wrong components;
   - `Row`;
   - a single column's type, e.g. `Long.class` for `c.select(count())`.
 

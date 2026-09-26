@@ -96,3 +96,63 @@ time, and you can migrate one class at a time.
   (`USERS.as("u")`).
 - **`UPDATE`/`DELETE` without `WHERE`** still need `.allRows()`. The error is now an
   `InvalidStatementException` when the statement runs.
+
+## From 3.1 to 3.2
+
+3.2 has two intentional incompatibilities. Everything else is additive.
+
+### Foreign key constants are named after their columns
+
+Generated foreign key constants are now `FK_` followed by the key's own columns. In 3.1,
+the first key of a table was named after the referenced table:
+
+| Foreign key | 3.1 | 3.2 |
+|---|---|---|
+| `orders.user_id → app_user(id)` | `ORDERS.FK_USER` | `ORDERS.FK_USER_ID` |
+| `app_user.created_by → app_user(id)` | `USERS.FK_USER` | `USERS.FK_CREATED_BY` |
+| `app_user.updated_by → app_user(id)` | `USERS.FK_UPDATED_BY` | `USERS.FK_UPDATED_BY` |
+
+The compiler finds every renamed constant. Either replace the uses, or keep the old
+names with `foreignKeyNames`:
+
+```kotlin
+lxrinQl {
+    foreignKeyNames.put("orders_user_id_fkey", "FK_USER")
+}
+```
+
+Check each `onKey(..)` that used the 3.1 name of a table with several foreign keys to
+the same table. In 3.1 the name depended on the key order, so it may have joined on a
+different key than you expected.
+
+### Records are no longer mapped by position silently
+
+In 3.1, `createContribution(Type.class, ..)` matched record components by name and fell
+back to position when the names did not match. In 3.2 a component without a field of the
+same name (column name or alias, `snake_case` = `camelCase`) fails when the query is
+built:
+
+```
+cannot map the select list into Pair by name: no field for component(s) a (UUID), b (String);
+unused field(s): id, name. …
+```
+
+Rename the fields or the components, or ask for positional mapping explicitly:
+
+```java
+record Pair(UUID a, String b) {}
+
+// 3.1: mapped by position silently
+createContribution(Pair.class, USERS, (c, b) -> c.select(USERS.ID, USERS.NAME))
+// 3.2
+createContribution(Pair.class, USERS, (c, b) -> c.select(USERS.ID.as("a"), USERS.NAME.as("b")))
+createContribution(Pair.class, USERS, (c, b) -> c.mapByPosition().select(USERS.ID, USERS.NAME))
+```
+
+Constructor references (`fetch(Pair::new)`) are unchanged.
+
+### New entry point `QL`
+
+`ch.lxrin.ql.QL` has the same static methods as `ch.lxrin.ql.dsl.Dsl`. Existing code keeps
+working; new code can use `QL.` or `import static ch.lxrin.ql.QL.*`. Do not import both
+statically in one file. The methods are the same, so it only adds noise.

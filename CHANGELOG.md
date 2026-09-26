@@ -7,6 +7,28 @@ are incompatible, and the [migration notes](docs/migration-2-to-3.md#from-31-to-
 both: the names of generated foreign key constants and record mapping by position.
 Everything else is additive. See the [3.2 design notes](docs/design/3.2.md).
 
+### Breaking: no silent positional record mapping
+
+In 3.1, record results of `createContribution(Type.class, ..)` were matched by component
+name, with a fallback to **position** when the names did not match. So reordering a select
+list could silently put values into the wrong fields, which the 3.0 design had ruled out.
+
+- A record component without a field of the same name (column name or alias,
+  `snake_case` → `camelCase`) now fails when the statement is built. The error lists every
+  unmatched component and every unused field.
+- Positional mapping must be requested: `c.mapByPosition().select(..)`.
+- Constructor references (`fetch(UserSummary::new)`) are unchanged.
+
+```java
+record Pair(UUID a, String b) {}
+
+// 3.1: silently by position
+createContribution(Pair.class, USERS, (c, b) -> c.select(USERS.ID, USERS.NAME));
+// 3.2: IllegalArgumentException "… no field for component(s) a (UUID), b (String); unused field(s): id, name. …"
+createContribution(Pair.class, USERS, (c, b) -> c.mapByPosition().select(USERS.ID, USERS.NAME));
+createContribution(Pair.class, USERS, (c, b) -> c.select(USERS.ID.as("a"), USERS.NAME.as("b")));
+```
+
 ### `QL` entry point
 
 - The new class `ch.lxrin.ql.QL` is the entry point. Typing `QL.` in the IDE finds every
