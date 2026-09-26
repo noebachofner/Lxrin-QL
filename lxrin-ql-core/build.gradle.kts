@@ -38,7 +38,7 @@ tasks.jar {
 val maxArity = 16
 val generatedArityDir = layout.buildDirectory.dir("generated/sources/arity/java/main")
 
-val generateArity by tasks.registering(GenerateArity::class) {
+val generateArity = tasks.register<GenerateArity>("generateArity") {
     arity.set(maxArity)
     outputDir.set(generatedArityDir)
 }

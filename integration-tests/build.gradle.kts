@@ -3,7 +3,7 @@ plugins {
     id("lxrin.java-conventions")
 }
 
-val codegen: Configuration by configurations.creating
+val codegen: Configuration = configurations.create("codegen")
 
 dependencies {
     testImplementation(project(":lxrin-ql-core"))
@@ -31,7 +31,7 @@ val generatedJava = layout.buildDirectory.dir("generated/sources/lxrinql/test/ja
 val generatedResources = layout.buildDirectory.dir("generated/resources/lxrinql/test")
 val migrations = layout.projectDirectory.dir("src/test/resources/db/migration")
 
-val generateSchemaCode by tasks.registering(JavaExec::class) {
+val generateSchemaCode = tasks.register<JavaExec>("generateSchemaCode") {
     description = "Generates code for the integration test schema"
     classpath = codegen
     mainClass.set("ch.lxrin.ql.codegen.Main")
