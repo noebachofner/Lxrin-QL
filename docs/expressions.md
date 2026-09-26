@@ -1,6 +1,6 @@
 # Fields and types
 
-All examples assume `import static ch.lxrin.ql.dsl.Dsl.*;` and the generated tables.
+All examples assume `import static ch.lxrin.ql.QL.*;` and the generated tables.
 
 ## The rule: a Java value is always a bind parameter
 

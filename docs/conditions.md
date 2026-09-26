@@ -9,9 +9,9 @@ depth.
 Every operator exists in two forms that render the same SQL with the same binds:
 
 ```java
-import static ch.lxrin.ql.dsl.Dsl.*;          // includes ch.lxrin.ql.dsl.Conditions
+import static ch.lxrin.ql.QL.*;              // includes ch.lxrin.ql.dsl.Conditions
 
-eq(USERS.EMAIL, email)                          // static function
+QL.eq(USERS.EMAIL, email)                       // static function; eq(..) with the static import
 USERS.EMAIL.eq(email)                           // field method
 ```
 

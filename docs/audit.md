@@ -11,7 +11,7 @@ run both on the same tables, or migrate from Envers step by step.
 
 ```kotlin
 dependencies {
-    implementation("ch.lxrin:lxrin-ql-audit:3.2.0")
+    implementation("ch.lxrin:lxrin-ql-audit:3.2.0")      // Groovy: implementation 'ch.lxrin:lxrin-ql-audit:3.2.0'
 }
 ```
 

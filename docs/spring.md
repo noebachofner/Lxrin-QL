@@ -5,8 +5,15 @@ provided by your application.
 
 ```kotlin
 dependencies {
-    implementation("ch.lxrin:lxrin-ql-spring:3.1.0")
+    implementation("ch.lxrin:lxrin-ql-spring:3.2.0")
     implementation("org.springframework.boot:spring-boot-starter-jdbc")
+}
+```
+
+```groovy
+dependencies {
+    implementation 'ch.lxrin:lxrin-ql-spring:3.2.0'
+    implementation 'org.springframework.boot:spring-boot-starter-jdbc'
 }
 ```
 
@@ -26,7 +33,8 @@ dependencies {
   `META-INF/lxrin-ql/repositories` are registered automatically; alternatively use
   `@EnableLxrinRepositories(basePackages = "com.example.db")`.
 - **Default context and `BEANS`.** When the context has started,
-  `QueryContext.getDefault()` returns the bean (for the static `Dsl.*`), and
+  `QueryContext.getDefault()` returns the bean (for the static `QL.*`), so
+  `QL.createContribution(..)` works in any bean without injecting the context, and
   `BEANS.get(..)` delegates to the `ApplicationContext`, so
   `BEANS.get(UserRepository.class)` returns the injected bean.
 - **JSON** uses the application's Jackson 3 `JsonMapper` (for `SqlTypes.jsonb(MyRecord.class)`).

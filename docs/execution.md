@@ -38,7 +38,7 @@ ctx.withOrigin(Origin.repository("Report.monthly"))   // origin reported to list
 `ctx.select(..)`, `ctx.insertInto(..)`, `ctx.update(..)`, `ctx.deleteFrom(..)`,
 `ctx.truncate(..)` and `ctx.selectFrom(..)` create statements attached to `ctx`.
 
-The static `Dsl.*` methods create statements that run on `QueryContext.getDefault()`,
+The static `QL.*` methods (and the same methods of `Dsl`) create statements that run on `QueryContext.getDefault()`,
 set with `QueryContext.setDefault(ctx)` (Spring does this). A statement can also be
 attached later: `select(..).attach(ctx)`.
 

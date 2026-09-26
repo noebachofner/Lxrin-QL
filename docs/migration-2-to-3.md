@@ -16,7 +16,7 @@ time, and you can migrate one class at a time.
    ```kotlin
    dependencies {
        implementation("ch.lxrin:lxrin-ql:2.0.0")          // until the last 2.x query is gone
-       implementation("ch.lxrin:lxrin-ql-core:3.1.0")
+       implementation("ch.lxrin:lxrin-ql-core:3.2.0")
    }
    ```
 
@@ -40,7 +40,7 @@ time, and you can migrate one class at a time.
 | 2.x | 3.0 |
 |---|---|
 | `ch.lxrin:lxrin-ql` | `ch.lxrin:lxrin-ql-core` (+ `-codegen`, `-gradle-plugin`, `-maven-plugin`, `-spring`, `-test`, `-bom`) |
-| `import static ch.lxrin.ql.LxrinQL.*` | `import static ch.lxrin.ql.dsl.Dsl.*` and `import static com.example.db.Tables.*` |
+| `import static ch.lxrin.ql.LxrinQL.*` | `import static ch.lxrin.ql.QL.*` (3.0 and 3.1: `…dsl.Dsl.*`) and `import static com.example.db.Tables.*` |
 | `class PersonTable extends TableDef { Column lastName = column("LAST_NAME"); }` | generated `PersonTable` with `StringColumn LAST_NAME` |
 | `table("ADDRESS", "a").col("CITY")` | `Sql.table("address").field("city", SqlTypes.TEXT)` (better: generate the table) |
 | `p.lastName` (untyped) | `PERSON.LAST_NAME` (a `StringColumn`) |
@@ -117,7 +117,13 @@ names with `foreignKeyNames`:
 
 ```kotlin
 lxrinQl {
-    foreignKeyNames.put("orders_user_id_fkey", "FK_USER")
+    foreignKeyNames.put("orders_user_id_fkey", "FK_USER")          // Kotlin DSL
+}
+```
+
+```groovy
+lxrinQl {
+    foreignKeyNames = [orders_user_id_fkey: 'FK_USER']             // Groovy DSL
 }
 ```
 
@@ -156,3 +162,6 @@ Constructor references (`fetch(Pair::new)`) are unchanged.
 `ch.lxrin.ql.QL` has the same static methods as `ch.lxrin.ql.dsl.Dsl`. Existing code keeps
 working; new code can use `QL.` or `import static ch.lxrin.ql.QL.*`. Do not import both
 statically in one file. The methods are the same, so it only adds noise.
+
+`QL` lives in the package `ch.lxrin.ql`, which 2.x also uses (`LxrinQL`, `RowMapper`).
+The class names do not clash, so 2.x and 3.2 still work side by side on the class path.

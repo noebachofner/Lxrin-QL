@@ -99,6 +99,39 @@ The ISMS audit example from the integration tests is now an optional module. See
   fail when the snapshot is out of date, for CI. With Docker they compare the complete
   snapshot; without Docker they compare only the migrations hash.
 
+### Gradle Plugin Portal
+
+- `ch.lxrin.ql.codegen` 3.0.1 and 3.1.0 were never on the Gradle Plugin Portal, although
+  `publishPlugins` succeeded. The portal accepted the first submission of the new plugin
+  ID for manual approval, which has not happened yet. A Gradle build that only uses the
+  portal cannot resolve the plugin (verified).
+- The `Publish` workflow now checks the portal credentials first. After publishing it
+  verifies that `https://plugins.gradle.org/m2/` itself serves the plugin marker of the
+  version, without following the portal's redirect to Maven Central, and fails
+  otherwise. A manual run (`workflow_dispatch`) with an existing tag publishes and
+  verifies only the Gradle plugin, e.g. after the approval.
+- Until the portal serves the plugin, add Maven Central to the plugin repositories; the
+  README and [docs/code-generation.md](docs/code-generation.md#gradle) show how:
+
+  ```kotlin
+  pluginManagement { repositories { gradlePluginPortal(); mavenCentral() } }
+  ```
+
+### Groovy DSL
+
+- Every Gradle example has a Groovy DSL equivalent, including the full `lxrinQl { }`
+  block with `database { }`, `forcedType(..)` and map properties such as
+  `tableConstants = [app_user: 'USERS']`.
+- A Groovy DSL consumer project in the integration tests generates code from a
+  committed schema snapshot without comments, checks the snapshot, and detects and fixes
+  a stale snapshot.
+
+### Fixed
+
+- Gradle plugin: `forcedType(..)` patterns with `|` (e.g. `"author_id|reviewer_id"`, as
+  shown in the documentation) failed with "invalid forced type". Entries added directly
+  in the 3.1 form `tables|columns|sqlTypes|javaType|dataType` are still read.
+
 ### User column conventions
 
 - `ColumnConventions.createdBy(column, type, Supplier<T>)` sets the column on insert, and
@@ -151,7 +184,7 @@ select(ORDERS.TOTAL).from(ORDERS).join(USERS).onKey(ORDERS.FK_USER_ID)
 
   ```kotlin
   lxrinQl {
-      foreignKeyNames.put("orders_user_id_fkey", "FK_USER")
+      foreignKeyNames.put("orders_user_id_fkey", "FK_USER")        // Groovy: foreignKeyNames = [orders_user_id_fkey: 'FK_USER']
   }
   ```
 

@@ -1,6 +1,6 @@
 # Examples
 
-Recipes for common tasks. They assume `import static ch.lxrin.ql.dsl.Dsl.*;`,
+Recipes for common tasks. They assume `import static ch.lxrin.ql.QL.*;`,
 `import static com.example.db.Tables.*;` and tables generated from:
 
 ```sql

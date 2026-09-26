@@ -124,10 +124,39 @@ joins such as `onKey(ASSET.FK_OWNER_ID)` compare equal types.
 
 ## Gradle
 
+The plugin `ch.lxrin.ql.codegen` is published to Maven Central. Until it is also
+available on the Gradle Plugin Portal, add Maven Central to the plugin repositories in
+`settings.gradle(.kts)`:
+
+```kotlin
+// settings.gradle.kts
+pluginManagement {
+    repositories {
+        gradlePluginPortal()
+        mavenCentral()
+    }
+}
+```
+
+```groovy
+// settings.gradle
+pluginManagement {
+    repositories {
+        gradlePluginPortal()
+        mavenCentral()
+    }
+}
+```
+
+Without it, Gradle reports `Plugin [id: 'ch.lxrin.ql.codegen', version: '3.2.0'] was not
+found`.
+
+**Kotlin DSL** (`build.gradle.kts`)
+
 ```kotlin
 plugins {
     java
-    id("ch.lxrin.ql.codegen") version "3.1.0"
+    id("ch.lxrin.ql.codegen") version "3.2.0"
 }
 
 lxrinQl {
@@ -136,25 +165,65 @@ lxrinQl {
     stripTablePrefixes.add("app_")
     tableConstants.put("app_user", "USERS")
     entityNames.put("app_user_role", "UserRole")
+    foreignKeyNames.put("app_user_created_by_fkey", "FK_CREATOR")
     enumMappings.put("app_role", "com.example.Role")
     excludes.add("tmp_.*")
     forcedType("app_user", "id", "uuid", "com.example.UserId", "com.example.Types.USER_ID")
+    // generateJavadoc = false                               // no comments in generated code
+    // schemaSource = "auto"                                 // auto, database or snapshot
+    // snapshotFile = layout.projectDirectory.file("src/main/lxrinql/schema.json")
     database {
-        image = "postgres:17-alpine"                            // the disposable database
+        image = "postgres:17-alpine"                         // the disposable database
         flywayMigrations.from("src/main/resources/db/migration")
-        sqlScripts.from("src/test/resources/extra.sql")          // plain SQL applied after Flyway
+        sqlScripts.from("src/test/resources/extra.sql")       // plain SQL applied after Flyway
     }
     // repositoryStubs = layout.projectDirectory.dir("src/main/java")
-    // addCoreDependency = false                                // add lxrin-ql-core yourself
+    // addCoreDependency = false                             // add lxrin-ql-core yourself
 }
 ```
 
-- The task `generateLxrinQl` is cacheable. Its inputs are the configuration and the
-  migration files.
+**Groovy DSL** (`build.gradle`)
+
+```groovy
+plugins {
+    id 'java'
+    id 'ch.lxrin.ql.codegen' version '3.2.0'
+}
+
+lxrinQl {
+    packageName = 'com.example.db'
+    schemas = ['public', 'audit']
+    stripTablePrefixes = ['app_']
+    tableConstants = [app_user: 'USERS']
+    entityNames = [app_user_role: 'UserRole']
+    foreignKeyNames = [app_user_created_by_fkey: 'FK_CREATOR']
+    enumMappings = [app_role: 'com.example.Role']
+    excludes = ['tmp_.*']
+    forcedType 'app_user', 'id', 'uuid', 'com.example.UserId', 'com.example.Types.USER_ID'
+    // generateJavadoc = false
+    // schemaSource = 'auto'
+    // snapshotFile = layout.projectDirectory.file('src/main/lxrinql/schema.json')
+    database {
+        image = 'postgres:17-alpine'
+        flywayMigrations.from('src/main/resources/db/migration')
+        sqlScripts.from('src/test/resources/extra.sql')
+    }
+    // repositoryStubs = layout.projectDirectory.dir('src/main/java')
+    // addCoreDependency = false
+}
+```
+
+In Groovy, map properties are assigned a map literal (`tableConstants = [app_user: 'USERS']`)
+or extended with `tableConstants.put('app_user', 'USERS')`, and list properties a list
+literal. Keys that are not plain identifiers need quotes: `['public.app_user': 'USERS']`.
+The [Groovy example project](../integration-tests/consumers/groovy-consumer/build.gradle)
+is built by the integration tests.
+
+- The task `generateLxrinQl` is cacheable. Its inputs are the configuration, the
+  migration files and the snapshot.
 - Its output is added to the `main` source set (`build/generated/sources/lxrinql/main/java`
   and `build/generated/resources/lxrinql/main`).
-- The plugin is published to the Gradle Plugin Portal and to Maven Central, so
-  `plugins { id(...) version "3.1.0" }` works without extra repositories.
+- `lxrinQlSnapshot` and `lxrinQlCheckSnapshot`: see [Without Docker](#without-docker).
 
 ## Maven
 
@@ -162,7 +231,7 @@ lxrinQl {
 <plugin>
     <groupId>ch.lxrin</groupId>
     <artifactId>lxrin-ql-maven-plugin</artifactId>
-    <version>3.1.0</version>
+    <version>3.2.0</version>
     <executions>
         <execution>
             <goals><goal>generate</goal></goals>
@@ -196,30 +265,77 @@ lxrinQl {
   `target/generated-sources/lxrinql` as a compile source root and
   `target/generated-resources/lxrinql` as a resource directory.
 - The plugin needs Maven 3.6.3 or newer.
+- Goals `snapshot` (`mvn lxrin-ql:snapshot`) and `check-snapshot`
+  (`mvn lxrin-ql:check-snapshot`) and the parameters `schemaSource` and `snapshotFile`:
+  see [Without Docker](#without-docker).
 - Other parameters: `outputDirectory`, `resourcesDirectory`,
   `repositoryStubDirectory` (default `src/main/java`), `defaultSchema`,
   `includes`, `excludes`, `singularize`, `foreignKeyNames`, `generateEntities`,
-  `generateRepositories`, `generateJavadoc`, `stubJavadoc`,
+  `generateRepositories`, `generateJavadoc`, `stubJavadoc`, `schemaSource`, `snapshotFile`,
   `image`, `sqlScripts` and `skip` (`-Dlxrinql.skip`).
 
 ## Command line
 
 ```bash
-java -jar lxrin-ql-codegen-3.1.0.jar \
+java -jar lxrin-ql-codegen-3.2.0.jar \
     --package com.example.db --output build/generated/java --resources build/generated/resources \
     --stubs src/main/java --migrations src/main/resources/db/migration \
     --strip-prefixes app_ --table-constants app_user=USERS \
     --forced-types "app_user|id|uuid|com.example.UserId|com.example.Types.USER_ID"
-java -jar lxrin-ql-codegen-3.1.0.jar --config codegen.properties
+java -jar lxrin-ql-codegen-3.2.0.jar --config codegen.properties
 ```
 
 The jar needs its dependencies on the class path, e.g. through your build tool.
+
+Further options: `--foreign-key-names constraint=FK_NAME,…`, `--generate-javadoc false`,
+`--stub-javadoc true`, and for snapshots `--write-snapshot file`, `--check-snapshot file`
+(exit status 1 if out of date), `--snapshot file` and `--schema-source auto|database|snapshot`.
 
 ## The database
 
 By default the generator starts `postgres:17-alpine` with Testcontainers (Docker
 required), applies the Flyway migrations and SQL scripts, reads the schema and stops
-the container. Use the same major PostgreSQL version as in production.
+the container. Without Docker it can generate from a committed snapshot, see
+[Without Docker](#without-docker). Use the same major PostgreSQL version as in production.
 
 To read an existing database instead, set `database { jdbcUrl = …; user = …; password = … }`
 (Gradle) or `<jdbcUrl>`, `<user>`, `<password>` (Maven). Nothing is migrated then.
+
+## Without Docker
+
+Reading the schema from migrations needs Docker. For CI runners and machines without
+Docker, and for faster IDE imports, commit a **schema snapshot** and generate from it:
+
+1. On a machine with Docker, write the snapshot and commit it:
+
+   ```bash
+   ./gradlew lxrinQlSnapshot          # Maven: mvn lxrin-ql:snapshot
+   git add src/main/lxrinql/schema.json
+   ```
+
+   The file is JSON with one line per column and key, so a migration shows up as a
+   small diff. It also contains a hash of the migration files.
+
+2. `generateLxrinQl` chooses the source with `schemaSource`:
+
+   | `schemaSource` | Schema from |
+   |---|---|
+   | `auto` (default) | the database if a JDBC URL is set or Docker is available, otherwise the snapshot. The log says which, and warns if the migrations changed since the snapshot was written |
+   | `database` | always the database (fails without Docker unless a JDBC URL is set) |
+   | `snapshot` | always the snapshot; no database, no Docker |
+
+   Both sources produce identical code.
+
+3. In CI, check that the snapshot is up to date:
+
+   ```bash
+   ./gradlew lxrinQlCheckSnapshot     # Maven: mvn lxrin-ql:check-snapshot
+   ```
+
+   With Docker it reads the schema from the migrations and compares the whole snapshot.
+   Without Docker it compares only the hash of the migrations. It fails with the first
+   differing line and asks you to run `lxrinQlSnapshot` again.
+
+Write the snapshot again after changing `schemas`, `includes` or `excludes`; the check
+detects this too. `./gradlew lxrinQlSnapshot build` writes the snapshot first and then
+generates from it.
