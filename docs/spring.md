@@ -5,7 +5,7 @@ provided by your application.
 
 ```kotlin
 dependencies {
-    implementation("ch.lxrin:lxrin-ql-spring:3.0.0")
+    implementation("ch.lxrin:lxrin-ql-spring:3.0.1")
     implementation("org.springframework.boot:spring-boot-starter-jdbc")
 }
 ```

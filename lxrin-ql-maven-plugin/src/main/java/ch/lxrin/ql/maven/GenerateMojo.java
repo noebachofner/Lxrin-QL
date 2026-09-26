@@ -24,7 +24,7 @@ import java.util.Map;
  * &lt;plugin&gt;
  *   &lt;groupId&gt;ch.lxrin&lt;/groupId&gt;
  *   &lt;artifactId&gt;lxrin-ql-maven-plugin&lt;/artifactId&gt;
- *   &lt;version&gt;3.0.0&lt;/version&gt;
+ *   &lt;version&gt;3.0.1&lt;/version&gt;
  *   &lt;executions&gt;&lt;execution&gt;&lt;goals&gt;&lt;goal&gt;generate&lt;/goal&gt;&lt;/goals&gt;&lt;/execution&gt;&lt;/executions&gt;
  *   &lt;configuration&gt;
  *     &lt;packageName&gt;com.example.db&lt;/packageName&gt;

@@ -37,7 +37,7 @@ not, and neither does `USERS.EMAIL.plus(1)`.
 
 ## Modules
 
-| Artifact (`ch.lxrin:…:3.0.0`) | What it is | Dependencies |
+| Artifact (`ch.lxrin:…:3.0.1`) | What it is | Dependencies |
 |---|---|---|
 | `lxrin-ql-core` | DSL, types, runtime, entities, repositories, `BEANS`, extension points | none |
 | `lxrin-ql-codegen` | Reads the schema from PostgreSQL and generates tables, rows, entities and repositories; CLI | PostgreSQL JDBC, Testcontainers, Flyway |
@@ -91,7 +91,7 @@ existing database.
 ```kotlin
 plugins {
     java
-    id("ch.lxrin.ql.codegen") version "3.0.0"     // adds lxrin-ql-core to implementation
+    id("ch.lxrin.ql.codegen") version "3.0.1"     // adds lxrin-ql-core to implementation
 }
 
 lxrinQl {
@@ -103,9 +103,9 @@ lxrinQl {
 }
 
 dependencies {
-    implementation("ch.lxrin:lxrin-ql-spring:3.0.0")   // optional: Spring Boot 4
+    implementation("ch.lxrin:lxrin-ql-spring:3.0.1")   // optional: Spring Boot 4
     runtimeOnly("org.postgresql:postgresql:42.7.13")
-    testImplementation("ch.lxrin:lxrin-ql-test:3.0.0")
+    testImplementation("ch.lxrin:lxrin-ql-test:3.0.1")
 }
 ```
 
@@ -116,7 +116,7 @@ dependencies {
     <dependency>
         <groupId>ch.lxrin</groupId>
         <artifactId>lxrin-ql-core</artifactId>
-        <version>3.0.0</version>
+        <version>3.0.1</version>
     </dependency>
 </dependencies>
 
@@ -125,7 +125,7 @@ dependencies {
         <plugin>
             <groupId>ch.lxrin</groupId>
             <artifactId>lxrin-ql-maven-plugin</artifactId>
-            <version>3.0.0</version>
+            <version>3.0.1</version>
             <executions>
                 <execution>
                     <goals><goal>generate</goal></goals>   <!-- bound to generate-sources -->

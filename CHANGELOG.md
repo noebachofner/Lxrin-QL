@@ -1,6 +1,6 @@
 # Changelog
 
-## 3.0.0
+## 3.0.1
 
 A new, strongly typed API. Application code no longer contains SQL text: tables,
 columns, entities and repositories are generated from the database schema, and every

@@ -104,7 +104,7 @@ joins such as `onKey(ASSET.FK_USER)` compare equal types.
 ```kotlin
 plugins {
     java
-    id("ch.lxrin.ql.codegen") version "3.0.0"
+    id("ch.lxrin.ql.codegen") version "3.0.1"
 }
 
 lxrinQl {
@@ -131,7 +131,7 @@ lxrinQl {
 - Its output is added to the `main` source set (`build/generated/sources/lxrinql/main/java`
   and `build/generated/resources/lxrinql/main`).
 - The plugin is published to the Gradle Plugin Portal and to Maven Central, so
-  `plugins { id(...) version "3.0.0" }` works without extra repositories.
+  `plugins { id(...) version "3.0.1" }` works without extra repositories.
 
 ## Maven
 
@@ -139,7 +139,7 @@ lxrinQl {
 <plugin>
     <groupId>ch.lxrin</groupId>
     <artifactId>lxrin-ql-maven-plugin</artifactId>
-    <version>3.0.0</version>
+    <version>3.0.1</version>
     <executions>
         <execution>
             <goals><goal>generate</goal></goals>
@@ -181,12 +181,12 @@ lxrinQl {
 ## Command line
 
 ```bash
-java -jar lxrin-ql-codegen-3.0.0.jar \
+java -jar lxrin-ql-codegen-3.0.1.jar \
     --package com.example.db --output build/generated/java --resources build/generated/resources \
     --stubs src/main/java --migrations src/main/resources/db/migration \
     --strip-prefixes app_ --table-constants app_user=USERS \
     --forced-types "app_user|id|uuid|com.example.UserId|com.example.Types.USER_ID"
-java -jar lxrin-ql-codegen-3.0.0.jar --config codegen.properties
+java -jar lxrin-ql-codegen-3.0.1.jar --config codegen.properties
 ```
 
 The jar needs its dependencies on the class path, e.g. through your build tool.
