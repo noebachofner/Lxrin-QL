@@ -6,6 +6,8 @@ import ch.lxrin.ql.types.SqlTypes;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.function.BiConsumer;
+import java.util.function.BiFunction;
 
 /**
  * The static entry point of the LxrinQL DSL:
@@ -72,6 +74,50 @@ public final class Dsl extends Functions {
     /** Starts a {@code TRUNCATE}. */
     public static Truncate truncate(Table<?>... tables) {
         return new Truncate(null, Arrays.asList(tables));
+    }
+
+    // =========================================================================
+    // createContribution style
+    // =========================================================================
+
+    /**
+     * A query over {@code table} whose rows are mapped into {@code type} (a record,
+     * {@link Row} or a single column type):
+     * <pre>{@code
+     * createContribution(UserSummary.class, USERS, (c, b) -> c
+     *         .select(USERS.ID, USERS.NAME)
+     *         .where(USERS.EMAIL.eq(b.setString(email))))
+     *     .fetch();
+     * }</pre>
+     */
+    public static <T> Select<T> createContribution(Class<T> type, Table<?> table,
+                                                   BiFunction<SelectScope<T>, Binds, ? extends Select<T>> body) {
+        return Contributions.select(null, type, table, body);
+    }
+
+    /** A query mapped into {@code type} without a preset {@code FROM}; add {@code .from(..)} in the body. */
+    public static <T> Select<T> createContribution(Class<T> type, BiFunction<SelectScope<T>, Binds, ? extends Select<T>> body) {
+        return Contributions.select(null, type, null, body);
+    }
+
+    /** {@code createInsert(USERS, (c, b) -> c.set(USERS.ID, id).set(USERS.NAME, name)).execute()} */
+    public static <R> Insert<R> createInsert(Table<R> table, BiConsumer<? super Insert<R>, Binds> body) {
+        return Contributions.insert(null, table, body);
+    }
+
+    /** {@code createUpdate(USERS, (c, b) -> c.set(..).where(..)).execute()}; {@code c.all()} for every row. */
+    public static <R> Update<R> createUpdate(Table<R> table, BiConsumer<? super Update<R>, Binds> body) {
+        return Contributions.update(null, table, body);
+    }
+
+    /** {@code createDelete(USERS, (c, b) -> c.where(..)).execute()}; {@code c.all()} for every row. */
+    public static <R> Delete<R> createDelete(Table<R> table, BiConsumer<? super Delete<R>, Binds> body) {
+        return Contributions.delete(null, table, body);
+    }
+
+    /** An {@code INSERT … ON CONFLICT}; by default on the primary key, updating every other set column. */
+    public static <R> Insert<R> createUpsert(Table<R> table, BiConsumer<? super Insert<R>, Binds> body) {
+        return Contributions.upsert(null, table, body);
     }
 
     // =========================================================================
