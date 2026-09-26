@@ -147,7 +147,7 @@ class EntityRepositoryIT {
                 + "WHERE (app_user.id = ? AND app_user.version = ? AND app_user.deleted_at IS NULL) RETURNING app_user.id, "
                 + "app_user.name, app_user.email, app_user.role, app_user.active, app_user.tags, app_user.settings, "
                 + "app_user.organization_id, app_user.created_at, app_user.created_by, app_user.updated_at, app_user.updated_by, "
-                + "app_user.deleted_at, app_user.version", lastSql());
+                + "app_user.deleted_at, app_user.version, app_user.last_seen_at", lastSql());
         assertEquals(1L, user.getVersion());
         assertEquals(clock.instant(), user.getUpdatedAt());
 

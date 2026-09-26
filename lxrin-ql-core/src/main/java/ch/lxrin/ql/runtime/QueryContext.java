@@ -542,9 +542,28 @@ public final class QueryContext extends ArityContextBase {
             return this;
         }
 
+        /** Removes all statement listeners, e.g. in {@code ctx.derive(..)} for writes that must not be intercepted. */
+        public Builder clearListeners() {
+            listeners.clear();
+            return this;
+        }
+
+        /** Removes all column conventions, e.g. for an audit listener that stores rows exactly as they are. */
+        public Builder clearConventions() {
+            conventions.clear();
+            return this;
+        }
+
+        /** Removes all table policies. */
+        public Builder clearPolicies() {
+            policies.clear();
+            return this;
+        }
+
         /**
          * Enables optimistic locking through a numeric column with this name:
-         * entity updates check and increment it, bulk updates increment it.
+         * entity updates check and increment it, bulk updates increment it;
+         * {@code null} turns it off.
          */
         public Builder versionColumn(String column) {
             this.versionColumn = column;

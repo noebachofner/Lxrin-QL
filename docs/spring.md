@@ -68,8 +68,8 @@ class PersistenceConfig {
     }
 
     @Bean
-    StatementListener audit(CurrentUser user, Clock clock) {
-        return new AuditListener(user::name, clock);
+    AuditUser<UUID> auditUser() {
+        return AuditUser.of(SqlTypes.UUID, CurrentUser::id);   // with lxrin-ql-audit and lxrin.ql.audit.tables
     }
 }
 
@@ -126,5 +126,8 @@ version is
 | `lxrin.ql.logging.enabled` | `true` | register the `LoggingObserver` |
 | `lxrin.ql.logging.slow-threshold` | `500ms` | slower statements are logged as warnings |
 | `lxrin.ql.logging.binds` | `false` | include bind values in the log (sensitive values are always redacted) |
+
+The audit history (`lxrin-ql-audit`) has its own properties, `lxrin.ql.audit.*`. See
+[Audit history](audit.md#with-spring-boot).
 
 To change the builder beyond these properties, declare a `QueryContextCustomizer` bean.

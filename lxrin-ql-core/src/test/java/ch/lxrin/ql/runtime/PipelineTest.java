@@ -432,5 +432,16 @@ class PipelineTest {
         assertEquals(10, derived.batchSize());
         assertEquals("version", derived.versionColumn().orElseThrow());
         assertEquals(1, base.bypassing(SoftDeletePolicy.class).bypassedPolicies().size());
+
+        QueryContext full = ctx(b -> b.versionColumn("version").listener(new StatementListener() {})
+                .convention(ColumnConventions.createdAt("created_at", clock)).policy(new SoftDeletePolicy("deleted_at", clock)));
+        QueryContext plain = full.derive(b -> b.clearListeners().clearConventions().clearPolicies().versionColumn(null));
+        assertEquals(List.of(), plain.listeners());
+        assertEquals(List.of(), plain.conventions());
+        assertEquals(List.of(), plain.policies());
+        assertTrue(plain.versionColumn().isEmpty());
+        assertEquals(1, full.listeners().size(), "the original is unchanged");
+        plain.insertInto(USERS).set(USERS.ID, UUID.randomUUID()).execute();
+        assertEquals("INSERT INTO users (id) VALUES (?)", db.lastSql());
     }
 }

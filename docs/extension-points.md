@@ -63,46 +63,17 @@ Limits: `TRUNCATE` returns no rows. A listener can reject it, or call
 
 ### Example: audit history
 
-The ISMS keeps a full history: one `revision` row per transaction (who, when), and
-for every changed row a copy in `<table>_aud`. It is built entirely on the extension
-points; the complete, tested version is
-[`IsmsAuditListener`](../integration-tests/src/test/java/ch/lxrin/ql/it/isms/IsmsAuditListener.java).
+The audit history of the ISMS is a statement listener: one `revision` row per
+transaction, and for every changed row a copy in `<table>_aud`. It ships as the module
+[`lxrin-ql-audit`](audit.md), in the layout of Hibernate Envers. Its source,
+[`AuditListener`](../lxrin-ql-audit/src/main/java/ch/lxrin/ql/audit/AuditListener.java),
+shows how to write your own listener:
 
-```java
-public final class AuditListener implements StatementListener {
-    private static final TransactionScope.Key<Long> REVISION_ID = TransactionScope.key("audit.revision");
-    private final Map<Table<?>, Table<?>> auditTables = Map.of(USERS, USER_AUD, ASSET, ASSET_AUD);
-
-    public boolean appliesTo(Table<?> t) { return auditTables.keySet().stream().anyMatch(a -> a.sameTable(t)); }
-
-    public void beforeInsert(InsertContext c) { c.requestReturning(c.table().columns()); }
-    public void beforeUpdate(UpdateContext c) { c.requestReturning(c.table().columns()); }
-    public void beforeDelete(DeleteContext c) { c.requestReturning(c.table().columns()); }
-    public void beforeTruncate(TruncateContext c) { c.reject("audited tables cannot be truncated"); }
-
-    public void afterInsert(WriteResult r) { write(r, "ADD"); }
-    public void afterUpdate(WriteResult r) { write(r, r.originalKind() == StatementKind.DELETE ? "DEL" : "MOD"); }
-    public void afterDelete(WriteResult r) { write(r, "DEL"); }
-
-    private void write(WriteResult r, String revtype) {
-        long rev = r.transaction().attribute(REVISION_ID, () -> r.dsl().insertInto(REVISION)
-                .set(REVISION.CREATED_BY, currentUser.get())
-                .set(REVISION.CREATED_AT, clock.instant())
-                .returning(REVISION.ID).fetchOne());
-        Table<?> aud = auditTables.get(r.table());
-        for (AffectedRow row : r.affectedRows()) {
-            Insert<?> insert = r.dsl().insertInto(aud)
-                    .setUnchecked(aud.column("rev").orElseThrow(), rev)
-                    .setUnchecked(aud.column("revtype").orElseThrow(), revtype);
-            row.values().forEach((column, value) -> insert.setUnchecked(aud.column(column.name()).orElseThrow(), value));
-            insert.execute();
-        }
-    }
-}
-```
-
-It covers entity saves, `saveAll`, bulk `update(..)` and `deleteAll(..)`, soft
-deletes and upserts, because all of them go through the pipeline.
+- request every column in the `before…` methods (`c.requestReturning(c.table().columns())`);
+- write through `r.dsl()`, which runs on the same connection and transaction;
+- keep per-transaction state with `r.transaction().attribute(..)`, and reset it in
+  `afterRollback(..)`;
+- reject `TRUNCATE` in `beforeTruncate`.
 
 ## Column conventions
 

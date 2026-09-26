@@ -62,6 +62,7 @@ not, and neither does `USERS.EMAIL.plus(1)`.
 | `lxrin-ql-gradle-plugin` | Gradle plugin `ch.lxrin.ql.codegen` | codegen |
 | `lxrin-ql-maven-plugin` | Maven plugin, goal `generate` | codegen |
 | `lxrin-ql-spring` | Spring Boot 4 auto-configuration | core (Spring provided by the application) |
+| `lxrin-ql-audit` | Audit history in `<table>_aud`, one revision per transaction, compatible with Hibernate Envers ([docs](docs/audit.md)) | core |
 | `lxrin-ql-test` | SQL assertions, mock executor, PostgreSQL JUnit extension, ArchUnit rules | core, JUnit |
 | `lxrin-ql-bom` | Aligns the versions of all modules | – |
 

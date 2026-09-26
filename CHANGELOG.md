@@ -59,6 +59,33 @@ createContribution(Pair.class, USERS, (c, b) -> c.select(USERS.ID.as("a"), USERS
   the 3.1 spec but missing. `c.select(col(USERS.USERNAME))`, `select(col(..))` and
   `returning(col(..))` compile and keep the column's type.
 
+### Audit history module `lxrin-ql-audit`
+
+The ISMS audit example from the integration tests is now an optional module. See
+[docs/audit.md](docs/audit.md).
+
+- `AuditListener` writes the full row of every insert, update and delete in an audited
+  table to `<table><suffix>` (default `_aud`), with the revision number and the revision
+  type (0 insert, 1 update, 2 delete). It covers repository writes (`save`, `saveAll`,
+  `delete`, `deleteAll`), the DSL, the `createInsert`/`createUpdate`/`createDelete`/
+  `createUpsert` style, upserts and soft deletes.
+- One revision row per transaction, by default `revision(id, revised_at, user_id)`.
+  Table and column names are configurable, and the user comes from an `AuditUser`
+  supplied by the application. A rollback leaves no history, and a rolled-back savepoint
+  discards its revision.
+- `AuditSettings`: tables by name or pattern, excluded columns per table (e.g.
+  `last_seen_at`), `storeDataAtDelete`, the audit table suffix.
+- The default layout is compatible with Hibernate Envers (`rev`, `revtype` 0/1/2, one
+  revision table). Integration tests show that Envers' `AuditReader` reads the rows
+  written by LxrinQL, and that LxrinQL continues a history written by Envers.
+- Spring Boot: with the module on the class path, `lxrin-ql-spring` creates the listener
+  from the `lxrin.ql.audit.*` properties as soon as `tables` or `table-patterns` is set,
+  with the revision user from an `AuditUser` bean.
+- The BOM includes the module.
+- `QueryContext.Builder` gains `clearListeners()`, `clearConventions()` and
+  `clearPolicies()` (for writes that must not be intercepted), and `versionColumn(null)`
+  turns the version column off.
+
 ### Code generation without Docker
 
 - `lxrinQlSnapshot` (Gradle), `lxrin-ql:snapshot` (Maven) and `--write-snapshot` (CLI)

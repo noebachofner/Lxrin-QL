@@ -6,7 +6,7 @@ All modules are published to Maven Central as `ch.lxrin:*` by the
 
 | Artifact | Repository |
 |---|---|
-| `lxrin-ql-bom`, `lxrin-ql-core`, `lxrin-ql-codegen`, `lxrin-ql-spring`, `lxrin-ql-test` | Maven Central |
+| `lxrin-ql-bom`, `lxrin-ql-core`, `lxrin-ql-codegen`, `lxrin-ql-spring`, `lxrin-ql-audit`, `lxrin-ql-test` | Maven Central |
 | `lxrin-ql-maven-plugin` (packaging `maven-plugin`) | Maven Central |
 | `lxrin-ql-gradle-plugin` and its plugin marker | Maven Central and Gradle Plugin Portal |
 
