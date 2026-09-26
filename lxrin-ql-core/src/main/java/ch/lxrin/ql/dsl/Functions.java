@@ -29,7 +29,7 @@ import java.util.UUID;
  * in {@code GROUP BY}. Anything missing here can be defined with
  * {@link Routines}.</p>
  */
-public class Functions extends Values {
+public class Functions extends Conditions {
 
     /** Static members only; extended by {@link Dsl}. */
     protected Functions() {}
@@ -353,36 +353,6 @@ public class Functions extends Values {
     /** Starts a simple {@code CASE subject WHEN value THEN result ...}. */
     public static <S> CaseOf<S> caseOf(Field<S> subject) {
         return new CaseOf<>(subject);
-    }
-
-    /** {@code EXISTS (SELECT ...)} */
-    public static Condition exists(AbstractSelect<?, ?> query) {
-        return Fields.condition(ctx -> ctx.append("EXISTS ").visit(query), true);
-    }
-
-    /** {@code NOT EXISTS (SELECT ...)} */
-    public static Condition notExists(AbstractSelect<?, ?> query) {
-        return Fields.condition(ctx -> ctx.append("NOT EXISTS ").visit(query), true);
-    }
-
-    /** {@code NOT (condition)} */
-    public static Condition not(Condition condition) {
-        return condition.not();
-    }
-
-    /** {@code (c1 AND c2 ...)}; {@code null} entries are skipped. */
-    public static Condition and(Condition... conditions) {
-        return Condition.and(conditions);
-    }
-
-    /** {@code (c1 OR c2 ...)}; {@code null} entries are skipped. */
-    public static Condition or(Condition... conditions) {
-        return Condition.or(conditions);
-    }
-
-    /** {@code TRUE}, neutral in {@code and(..)}. */
-    public static Condition noCondition() {
-        return Condition.noCondition();
     }
 
     // =========================================================================
@@ -992,16 +962,6 @@ public class Functions extends Values {
         return range("numrange", SqlTypes.NUMRANGE, lower, upper, "[)");
     }
 
-    /** {@code range @> value} – the range contains the value. */
-    public static <T> Condition rangeContains(Field<String> range, Field<T> value) {
-        return Ops.compare(range, "@>", value);
-    }
-
-    /** {@code a && b} – the ranges overlap. */
-    public static Condition rangeOverlaps(Field<String> a, Field<String> b) {
-        return Ops.compare(a, "&&", b);
-    }
-
     /** {@code isempty(range)} */
     public static Condition isEmpty(Field<String> range) {
         return Fields.condition(Ops.call("isempty", range), true);
@@ -1259,11 +1219,6 @@ public class Functions extends Values {
     /** {@code websearch_to_tsquery('config', text)} with an expression. */
     public static Field<String> websearchToTsquery(String config, Field<String> text) {
         return tsquery("websearch_to_tsquery", config, text);
-    }
-
-    /** {@code vector @@ query} */
-    public static Condition tsMatches(Field<String> vector, Field<String> query) {
-        return Ops.compare(vector, "@@", query);
     }
 
     /** {@code ts_rank(vector, query)} */

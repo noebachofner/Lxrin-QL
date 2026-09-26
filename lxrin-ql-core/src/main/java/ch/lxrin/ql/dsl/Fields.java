@@ -60,6 +60,27 @@ public final class Fields {
         return new ArrayExpr<>(type, body, null);
     }
 
+    /** Creates a range field of the given range type. */
+    public static RangeField range(DataType<String> type, QueryPart body) {
+        return new RangeExpr(type, body, null);
+    }
+
+    /** Creates a {@code tsvector} field. */
+    public static TsVectorField tsvector(QueryPart body) {
+        return new TsVectorExpr(SqlTypes.TSVECTOR, body, null);
+    }
+
+    /** Returns {@code true} for the built-in range types, which are read and written as text. */
+    public static boolean isRange(DataType<?> type) {
+        return type.kind() == Kind.OTHER && type.javaType() == String.class && type.sqlName().endsWith("range")
+                && !type.sqlName().endsWith("multirange");
+    }
+
+    /** Returns {@code true} for {@code tsvector}. */
+    public static boolean isTsVector(DataType<?> type) {
+        return type.kind() == Kind.OTHER && type.javaType() == String.class && "tsvector".equals(type.sqlName());
+    }
+
     /**
      * Creates a condition.
      *
@@ -102,6 +123,8 @@ public final class Fields {
         if (kind == Kind.JSON) return new JsonExpr(type, body, alias);
         if (kind == Kind.ARRAY) return new ArrayExpr(type, body, alias);
         if (kind == Kind.BOOLEAN && javaType == Boolean.class) return new ConditionExpr(body, alias, true);
+        if (isRange(type)) return new RangeExpr(type, body, alias);
+        if (isTsVector(type)) return new TsVectorExpr(type, body, alias);
         return new GenericExpr(type, body, alias);
     }
 
@@ -181,6 +204,18 @@ public final class Fields {
 
     static final class ArrayExpr<E> extends AbstractField<E[]> implements ArrayField<E> {
         ArrayExpr(DataType<E[]> type, QueryPart body, String alias) {
+            super(type, body, alias);
+        }
+    }
+
+    static final class RangeExpr extends AbstractField<String> implements RangeField {
+        RangeExpr(DataType<String> type, QueryPart body, String alias) {
+            super(type, body, alias);
+        }
+    }
+
+    static final class TsVectorExpr extends AbstractField<String> implements TsVectorField {
+        TsVectorExpr(DataType<String> type, QueryPart body, String alias) {
             super(type, body, alias);
         }
     }

@@ -25,6 +25,36 @@ public interface ArrayField<E> extends Field<E[]> {
     /** {@code this && ?} – has at least one of the given elements. */
     default Condition overlaps(E[] elements) { return Ops.compare(this, "&&", Ops.value(this, elements, "overlaps")); }
 
+    /** {@code this @> other} – contains all elements of the other array. */
+    default Condition contains(Field<E[]> other) { return Ops.compare(this, "@>", Ops.field(other)); }
+
+    /** {@code this <@ other} */
+    default Condition containedBy(Field<E[]> other) { return Ops.compare(this, "<@", Ops.field(other)); }
+
+    /** {@code this && other} */
+    default Condition overlaps(Field<E[]> other) { return Ops.compare(this, "&&", Ops.field(other)); }
+
+    /** {@code this @> ?} – contains all given elements; the same as {@link #contains(Object[])}. */
+    @SuppressWarnings("unchecked")
+    default Condition arrayContains(E... elements) { return Ops.compare(this, "@>", Ops.value(this, elements, "arrayContains")); }
+
+    /** {@code this @> other} */
+    default Condition arrayContains(Field<E[]> other) { return contains(other); }
+
+    /** {@code this <@ ?} – all elements are among the given ones. */
+    @SuppressWarnings("unchecked")
+    default Condition arrayContainedBy(E... elements) { return Ops.compare(this, "<@", Ops.value(this, elements, "arrayContainedBy")); }
+
+    /** {@code this <@ other} */
+    default Condition arrayContainedBy(Field<E[]> other) { return containedBy(other); }
+
+    /** {@code this && ?} – has at least one of the given elements. */
+    @SuppressWarnings("unchecked")
+    default Condition arrayOverlaps(E... elements) { return Ops.compare(this, "&&", Ops.value(this, elements, "arrayOverlaps")); }
+
+    /** {@code this && other} */
+    default Condition arrayOverlaps(Field<E[]> other) { return overlaps(other); }
+
     /** {@code ? = ANY(this)} – contains the element. */
     default Condition hasElement(E element) {
         if (element == null) throw new IllegalArgumentException("element must not be null");

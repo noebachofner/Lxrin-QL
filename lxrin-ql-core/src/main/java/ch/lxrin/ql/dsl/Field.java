@@ -3,7 +3,9 @@ package ch.lxrin.ql.dsl;
 import ch.lxrin.ql.render.QueryPart;
 import ch.lxrin.ql.types.DataType;
 
+import java.util.Arrays;
 import java.util.Collection;
+import java.util.Optional;
 
 /**
  * A typed SQL expression: a column, a function call, a bind parameter or a
@@ -127,6 +129,94 @@ public interface Field<T> extends QueryPart {
     /** {@code this NOT BETWEEN ? AND ?} */
     default Condition notBetween(T from, T to) {
         return Ops.between(this, "NOT BETWEEN", Ops.value(this, from, "notBetween"), Ops.value(this, to, "notBetween"));
+    }
+
+    /** {@code this NOT BETWEEN from AND to} */
+    default Condition notBetween(Field<T> from, Field<T> to) {
+        return Ops.between(this, "NOT BETWEEN", Ops.field(from), Ops.field(to));
+    }
+
+    /** {@code this BETWEEN SYMMETRIC a AND b} */
+    default Condition betweenSymmetric(Field<T> a, Field<T> b) {
+        return Ops.between(this, "BETWEEN SYMMETRIC", Ops.field(a), Ops.field(b));
+    }
+
+    /** {@code this NOT BETWEEN SYMMETRIC a AND b} */
+    default Condition notBetweenSymmetric(Field<T> a, Field<T> b) {
+        return Ops.between(this, "NOT BETWEEN SYMMETRIC", Ops.field(a), Ops.field(b));
+    }
+
+    /** {@code this = ANY(?)} for the given values, bound as one array parameter. */
+    @SuppressWarnings("unchecked")
+    default Condition in(T... values) { return in(Arrays.asList(values)); }
+
+    /** {@code this <> ALL(?)} for the given values. */
+    @SuppressWarnings("unchecked")
+    default Condition notIn(T... values) { return notIn(Arrays.asList(values)); }
+
+    /** {@code this = ANY(?)} for a list created with {@code b.setList(..)}. */
+    default Condition in(BindList<? extends T> values) { return in(values.values()); }
+
+    /** {@code this <> ALL(?)} for a list created with {@code b.setList(..)}. */
+    default Condition notIn(BindList<? extends T> values) { return notIn(values.values()); }
+
+    /** {@code this BETWEEN SYMMETRIC ? AND ?} – the bounds may be given in any order. */
+    default Condition betweenSymmetric(T a, T b) {
+        return Ops.between(this, "BETWEEN SYMMETRIC", Ops.value(this, a, "betweenSymmetric"), Ops.value(this, b, "betweenSymmetric"));
+    }
+
+    /** {@code this NOT BETWEEN SYMMETRIC ? AND ?} */
+    default Condition notBetweenSymmetric(T a, T b) {
+        return Ops.between(this, "NOT BETWEEN SYMMETRIC", Ops.value(this, a, "notBetweenSymmetric"), Ops.value(this, b, "notBetweenSymmetric"));
+    }
+
+    // -------------------------------------------------------------------------
+    // Quantified comparisons: ANY / ALL
+    // -------------------------------------------------------------------------
+
+    /** {@code this = ANY(..)} / {@code this = ALL(..)} */
+    default Condition eq(Quantified<? extends T> q) { return Ops.compare(this, "=", q); }
+
+    /** {@code this <> ANY(..)} / {@code this <> ALL(..)} */
+    default Condition ne(Quantified<? extends T> q) { return Ops.compare(this, "<>", q); }
+
+    /** {@code this > ANY(..)} / {@code this > ALL(..)} */
+    default Condition gt(Quantified<? extends T> q) { return Ops.compare(this, ">", q); }
+
+    /** {@code this >= ANY(..)} / {@code this >= ALL(..)} */
+    default Condition ge(Quantified<? extends T> q) { return Ops.compare(this, ">=", q); }
+
+    /** {@code this < ANY(..)} / {@code this < ALL(..)} */
+    default Condition lt(Quantified<? extends T> q) { return Ops.compare(this, "<", q); }
+
+    /** {@code this <= ANY(..)} / {@code this <= ALL(..)} */
+    default Condition le(Quantified<? extends T> q) { return Ops.compare(this, "<=", q); }
+
+    // -------------------------------------------------------------------------
+    // Optional filters: …IfPresent
+    // -------------------------------------------------------------------------
+
+    /** {@code this = ?} if a value is present, else {@link Condition#noCondition()}. */
+    default Condition eqIfPresent(Optional<? extends T> value) { return value.isPresent() ? eq(value.get()) : Condition.noCondition(); }
+
+    /** {@code this <> ?} if a value is present, else no condition. */
+    default Condition neIfPresent(Optional<? extends T> value) { return value.isPresent() ? ne(value.get()) : Condition.noCondition(); }
+
+    /** {@code this > ?} if a value is present, else no condition. */
+    default Condition gtIfPresent(Optional<? extends T> value) { return value.isPresent() ? gt(value.get()) : Condition.noCondition(); }
+
+    /** {@code this >= ?} if a value is present, else no condition. */
+    default Condition geIfPresent(Optional<? extends T> value) { return value.isPresent() ? ge(value.get()) : Condition.noCondition(); }
+
+    /** {@code this < ?} if a value is present, else no condition. */
+    default Condition ltIfPresent(Optional<? extends T> value) { return value.isPresent() ? lt(value.get()) : Condition.noCondition(); }
+
+    /** {@code this <= ?} if a value is present, else no condition. */
+    default Condition leIfPresent(Optional<? extends T> value) { return value.isPresent() ? le(value.get()) : Condition.noCondition(); }
+
+    /** {@code this = ANY(?)} if a collection is present, else no condition (an empty collection still matches nothing). */
+    default Condition inIfPresent(Optional<? extends Collection<? extends T>> values) {
+        return values.isPresent() ? in(values.get()) : Condition.noCondition();
     }
 
     // -------------------------------------------------------------------------
