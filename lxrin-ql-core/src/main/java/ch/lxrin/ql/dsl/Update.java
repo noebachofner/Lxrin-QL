@@ -20,7 +20,7 @@ public final class Update<R> extends AbstractDml<R, Update<R>> {
 
     private final UpdateStatement statement;
 
-    /** Creates the builder; use {@code Dsl.update(..)} or {@code ctx.update(..)}. */
+    /** Creates the builder; use {@code QL.update(..)} or {@code ctx.update(..)}. */
     public Update(QueryContext context, Table<R> table) {
         super(context, table);
         this.statement = new UpdateStatement(table);

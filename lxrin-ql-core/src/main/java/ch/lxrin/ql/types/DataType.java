@@ -46,7 +46,7 @@ public final class DataType<T> {
         T fromArrayElement(ValueContext ctx, Object element);
 
         /**
-         * Returns the value as an escaped SQL literal, used by {@code Dsl.inline(..)}.
+         * Returns the value as an escaped SQL literal, used by {@code QL.inline(..)}.
          *
          * @throws UnsupportedOperationException if the type has no literal form
          */

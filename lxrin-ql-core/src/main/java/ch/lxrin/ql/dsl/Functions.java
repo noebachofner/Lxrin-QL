@@ -19,7 +19,7 @@ import java.util.UUID;
 
 /**
  * The typed PostgreSQL function catalog. All methods are also available
- * through {@code import static ch.lxrin.ql.dsl.Dsl.*}.
+ * through {@code import static ch.lxrin.ql.QL.*}.
  *
  * <p>Arguments typed {@code Field} are expressions (use {@code param(..)} or
  * the {@code T} overloads for values). {@code String} arguments that are
@@ -31,7 +31,7 @@ import java.util.UUID;
  */
 public class Functions extends Conditions {
 
-    /** Static members only; extended by {@link Dsl}. */
+    /** Static members only; extended by {@link Statements}. */
     protected Functions() {}
 
     // =========================================================================

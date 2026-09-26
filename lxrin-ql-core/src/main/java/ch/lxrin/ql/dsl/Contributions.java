@@ -16,10 +16,10 @@ import java.util.function.BiFunction;
 /**
  * The {@code createContribution} / {@code createInsert} / {@code createUpdate}
  * / {@code createDelete} / {@code createUpsert} style: a thin layer over the
- * builders of {@link Dsl}, with the builder as {@code c} and the explicit bind
+ * builders of {@link Statements}, with the builder as {@code c} and the explicit bind
  * helper {@link Binds} as {@code b}. Statements run through the same pipeline
  * (policies, conventions, listeners, observers). Use the methods of
- * {@link Dsl} or {@link QueryContext}; this class holds the shared implementation.
+ * {@code QL}, {@link Dsl} or {@link QueryContext}; this class holds the shared implementation.
  */
 public final class Contributions {
 

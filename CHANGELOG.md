@@ -7,6 +7,36 @@ are incompatible, and the [migration notes](docs/migration-2-to-3.md#from-31-to-
 both: the names of generated foreign key constants and record mapping by position.
 Everything else is additive. See the [3.2 design notes](docs/design/3.2.md).
 
+### `QL` entry point
+
+- The new class `ch.lxrin.ql.QL` is the entry point. Typing `QL.` in the IDE finds every
+  statement, the `create…` style, every condition and every function:
+
+  ```java
+  String name = QL.createContribution(String.class, USERS, (c, b) -> c
+          .select(col(USERS.USERNAME))
+          .where(and(
+                  eq(USERS.KEYCLOAK_ID, b.setString(keycloakId)),
+                  in(USERS.LOCALE, "de", "en"),
+                  isNull(USERS.DELETED_AT))))
+          .fetchOne();
+  ```
+
+  With `import static ch.lxrin.ql.QL.*` the prefix can be left out.
+- `QL` and `Dsl` have exactly the same static methods. Both inherit them from the new
+  base class `ch.lxrin.ql.dsl.Statements`, which holds what `Dsl` declared in 3.1, and a
+  test checks that neither class declares methods of its own. `Dsl` stays for code
+  written against 3.0 and 3.1. Calls compiled against 3.1 still link, because static
+  methods resolve through the superclass.
+- `QL` runs on `QueryContext.getDefault()`, which `lxrin-ql-spring` registers, so
+  `QL.createContribution(..)` works in any Spring bean without injection.
+
+### `col(..)` in select and returning lists
+
+- `col(field)` (`<T> Field<T> col(Field<T>)`) returns the field itself. It was part of
+  the 3.1 spec but missing. `c.select(col(USERS.USERNAME))`, `select(col(..))` and
+  `returning(col(..))` compile and keep the column's type.
+
 ### Code generation without comments
 
 - `generateJavadoc` (default `true`) in `CodegenConfig`, the Gradle plugin, the Maven plugin

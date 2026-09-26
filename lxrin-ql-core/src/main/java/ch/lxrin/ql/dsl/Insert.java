@@ -20,7 +20,7 @@ public final class Insert<R> extends InsertColumns<R> {
 
     private Map<Column<?>, Field<?>> currentRow;
 
-    /** Creates the builder; use {@code Dsl.insertInto(..)} or {@code ctx.insertInto(..)}. */
+    /** Creates the builder; use {@code QL.insertInto(..)} or {@code ctx.insertInto(..)}. */
     public Insert(QueryContext context, Table<R> table) {
         super(context, table);
     }
