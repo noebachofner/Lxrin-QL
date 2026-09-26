@@ -112,9 +112,10 @@ automatically, with no code at the call site:
 ```java
 QueryContext.builder()
     .convention(ColumnConventions.createdAt("created_at", clock))
-    .convention(ColumnConventions.onInsert("created_by", String.class, c -> currentUser.get()))
+    .convention(ColumnConventions.createdBy("created_by", UUID.class, currentUser::id))  // insert
     .convention(ColumnConventions.updatedAt("updated_at", clock))                        // insert and update
-    .convention(ColumnConventions.onInsertAndUpdate("updated_by", String.class, c -> currentUser.get()))
+    .convention(ColumnConventions.updatedBy("updated_by", UUID.class, currentUser::id))  // insert and update
+    .convention(ColumnConventions.onInsert("source", String.class, c -> "import"))       // any value
     .convention(ColumnConventions.expression("synced_at", Instant.class, ColumnConvention.When.UPDATE, () -> now()))
 ```
 

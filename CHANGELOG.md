@@ -59,6 +59,15 @@ createContribution(Pair.class, USERS, (c, b) -> c.select(USERS.ID.as("a"), USERS
   the 3.1 spec but missing. `c.select(col(USERS.USERNAME))`, `select(col(..))` and
   `returning(col(..))` compile and keep the column's type.
 
+### User column conventions
+
+- `ColumnConventions.createdBy(column, type, Supplier<T>)` sets the column on insert, and
+  `ColumnConventions.updatedBy(column, type, Supplier<T>)` sets it on insert and update,
+  next to `createdAt`/`updatedAt`. The supplier may return `null`, for example for jobs
+  without a user.
+- [docs/spring.md](docs/spring.md#the-current-user-from-spring-security) shows how to read
+  the user's UUID from the Spring Security context. An integration test runs it.
+
 ### Code generation without comments
 
 - `generateJavadoc` (default `true`) in `CodegenConfig`, the Gradle plugin, the Maven plugin

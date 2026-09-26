@@ -22,6 +22,7 @@ dependencies {
     testImplementation(libs.spring.boot.starter.jackson)
     testImplementation(libs.spring.boot.micrometer.observation)
     testImplementation(libs.spring.boot.test)
+    testImplementation(libs.spring.security.core)
     testRuntimeOnly(libs.junit.launcher)
     codegen(project(":lxrin-ql-codegen"))
 }

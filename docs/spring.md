@@ -53,8 +53,13 @@ class PersistenceConfig {
     }
 
     @Bean
-    ColumnConvention<String> createdBy(CurrentUser user) {
-        return ColumnConventions.onInsert("created_by", String.class, c -> user.name());   // e.g. from Keycloak
+    ColumnConvention<UUID> createdBy() {
+        return ColumnConventions.createdBy("created_by", UUID.class, CurrentUser::id);
+    }
+
+    @Bean
+    ColumnConvention<UUID> updatedBy() {
+        return ColumnConventions.updatedBy("updated_by", UUID.class, CurrentUser::id);
     }
 
     @Bean
@@ -84,6 +89,31 @@ class UserService {
     }
 }
 ```
+
+### The current user from Spring Security
+
+`CurrentUser::id` above reads the user's UUID from the security context. With Keycloak
+and `spring-boot-starter-oauth2-resource-server`, the authentication name is the token's
+`sub` claim, which is the user's UUID:
+
+```java
+public final class CurrentUser {
+
+    private CurrentUser() {}
+
+    public static UUID id() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || !authentication.isAuthenticated()) return null;   // e.g. a scheduled job
+        return UUID.fromString(authentication.getName());
+    }
+}
+```
+
+`createdBy` sets the column on insert; `updatedBy` sets it on insert and update. A
+`null` from the supplier writes `NULL`. The supplier runs in the thread that executes
+the statement, which is the request thread for `@Transactional` services. The tested
+version is
+[`SpringSecurityIT`](../integration-tests/src/test/java/ch/lxrin/ql/it/SpringSecurityIT.java).
 
 ## Properties
 
