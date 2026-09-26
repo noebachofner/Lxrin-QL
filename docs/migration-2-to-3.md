@@ -16,7 +16,7 @@ time, and you can migrate one class at a time.
    ```kotlin
    dependencies {
        implementation("ch.lxrin:lxrin-ql:2.0.0")          // until the last 2.x query is gone
-       implementation("ch.lxrin:lxrin-ql-core:3.0.1")
+       implementation("ch.lxrin:lxrin-ql-core:3.1.0")
    }
    ```
 
