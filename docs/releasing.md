@@ -40,11 +40,43 @@ All modules are published to Maven Central as `ch.lxrin:*` by the
 1. Set the new version in `gradle.properties`, update `CHANGELOG.md` and the versions
    in `README.md` and `docs/`, and push to `main`. The [`Build`](../.github/workflows/build.yml)
    workflow must be green.
-2. Create a GitHub release with the tag `v<version>` (e.g. `v3.1.0`).
+2. Create a GitHub release with the tag `v<version>` (e.g. `v3.2.0`).
 
-The workflow builds and tests everything, uploads and releases the Maven Central
-artifacts, and publishes the Gradle plugin to the Plugin Portal. Maven Central
-artifacts are usually available within 30 minutes.
+The workflow:
+
+1. checks that the tag matches the version and that the Plugin Portal secrets are set;
+2. builds and tests everything;
+3. uploads and releases the Maven Central artifacts (usually available within 30
+   minutes);
+4. publishes the Gradle plugin to the Plugin Portal;
+5. **verifies** that `https://plugins.gradle.org/m2/` serves the plugin marker of the
+   version ([`check-plugin-portal.sh`](../.github/scripts/check-plugin-portal.sh), up to
+   ten minutes). The workflow fails if it does not.
+
+## Gradle Plugin Portal
+
+`publishPlugins` also succeeds when the portal only *accepts a submission*: the first
+version of a new plugin ID waits for manual approval by the portal team. For
+`ch.lxrin.ql.codegen` the portal may also ask you to prove that you own `lxrin.ch`. The
+plugin is not served until the approval is done. This is why 3.0.1 and 3.1.0 reported
+success but were never on the portal. The verification step now catches this case.
+
+The check does not follow redirects. For a plugin it does not host, the portal answers
+`303 See Other` with a redirect to Maven Central, but builds that only use
+`gradlePluginPortal()` still cannot resolve the plugin.
+
+If the verification fails:
+
+1. Look for "approval" in the log of the `publishPlugins` step (the workflow repeats it as
+   a warning), and check the e-mail of the portal account and
+   <https://plugins.gradle.org/u/noebachofner>.
+2. Complete the approval, or verify the domain as the portal asks.
+3. Run the `Publish` workflow manually (Actions → Publish → Run workflow) with the tag,
+   e.g. `v3.2.0`. It publishes and verifies only the Gradle plugin; Maven Central is not
+   touched.
+
+Until the portal serves the plugin, consumers add Maven Central to their plugin
+repositories (see [Code generation › Gradle](code-generation.md#gradle)).
 
 ## Checking a release locally
 
