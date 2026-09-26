@@ -1,351 +1,327 @@
 # Function reference
 
-All functions are static methods of `LxrinQL` (via `import static ch.lxrin.ql.LxrinQL.*`).
-Parameters typed `Object` follow the [operand rule](expressions.md#the-operand-rule): expressions are rendered, a `String` is SQL, and other values are bound. Parameters typed `String` or a primitive are **constants** and are written as escaped literals.
+All functions are static methods of `ch.lxrin.ql.dsl.Dsl` (`import static ch.lxrin.ql.dsl.Dsl.*;`).
+This page is generated from `Functions.java`.
 
-Functions that return `FunctionCall` support these modifiers:
-
-| Modifier | SQL |
-|---|---|
-| `.distinct()` | `f(DISTINCT …)` |
-| `.orderBy(sort…)` | `f(… ORDER BY …)` (ordered aggregates) |
-| `.withinGroup(sort…)` | `f(…) WITHIN GROUP (ORDER BY …)` |
-| `.filter(condition)` | `f(…) FILTER (WHERE …)` |
-| `.over()` / `.over(windowSpec)` / `.over("name")` | window function call |
-| `.as("alias")`, `.eq(..)`, `.plus(..)`, … | everything an `Expression` can do |
-
-Anything not listed here can be called with `function("name", args…)`.
-The catalog is tested against PostgreSQL 17. Functions marked with a version need at least that release.
+- Arguments typed `Field<...>` are expressions: columns, other functions, or values wrapped with `param(..)`.
+- `String` arguments that belong to the shape of the query (date parts, formats, separators, regex patterns,
+  JSON keys and paths, text-search configurations) are written as **escaped literals**, so the same expression
+  can appear in the select list and in `GROUP BY`. Search texts and other user input are bound.
+- Return types keep the type family: `lower(..)` is a `StringField`, `count()` a `NumberAggregate<Long>`.
+- Anything missing can be defined with [`Routines`](extension-points.md#custom-functions-and-operators).
 
 ## Contents
 
-- [Generic](#generic)
-- [Aggregate functions](#aggregate-functions)
-- [Window functions (use with .over(..))](#window-functions-use-with-over)
+- [Aggregates](#aggregates)
+- [Window functions](#window-functions)
 - [Conditional expressions](#conditional-expressions)
-- [String functions](#string-functions)
-- [Mathematical functions](#mathematical-functions)
+- [Strings](#strings)
+- [Mathematics](#mathematics)
 - [Date and time](#date-and-time)
 - [Ranges](#ranges)
-- [JSON / JSONB](#json--jsonb)
+- [JSON](#json)
 - [Arrays](#arrays)
 - [Full-text search](#full-text-search)
-- [Sequences, system information, misc](#sequences-system-information-misc)
+- [Sequences, system information](#sequences-system-information)
+- [GROUP BY elements](#group-by-elements)
 
-## Generic
+## Aggregates
 
-| Method | SQL / description |
-|---|---|
-| `function(String name, Object... args)` | Calls any SQL function: `function("similarity", p.name, val(text))` renders `similarity(p.NAME, :lq0)`. The result supports `filter`, `orderBy`, `withinGroup` and `over`. |
-| `booleanFunction(String name, Object... args)` | Calls a function that returns a boolean and uses it as a condition. |
+| Method | Returns | Description |
+|---|---|---|
+| `count()` | `NumberAggregate<Long>` | `count(*)` |
+| `count(Field<?> field)` | `NumberAggregate<Long>` | `count(field)` – counts non-null values. |
+| `countDistinct(Field<?> field)` | `NumberAggregate<Long>` | `count(DISTINCT field)` |
+| `sum(Field<? extends Number> field)` | `NumberAggregate<BigDecimal>` | `sum(field)`; read as `BigDecimal`, so it cannot overflow. |
+| `avg(Field<? extends Number> field)` | `NumberAggregate<BigDecimal>` | `avg(field)` |
+| `min(Field<T> field)` | `AggregateFunction<T>` | `min(field)`; the result keeps the field's type family. |
+| `min(NumberField<N> field)` | `NumberAggregate<N>` | `min(field)` for numbers. |
+| `min(StringField field)` | `StringAggregate` | `min(field)` for text. |
+| `max(Field<T> field)` | `AggregateFunction<T>` | `max(field)`; the result keeps the field's type family. |
+| `max(NumberField<N> field)` | `NumberAggregate<N>` | `max(field)` for numbers. |
+| `max(StringField field)` | `StringAggregate` | `max(field)` for text. |
+| `stringAgg(Field<String> field, String separator)` | `StringAggregate` | `string_agg(field, 'separator')` – add `.orderBy(..)` for a defined order. |
+| `arrayAgg(Field<T> field)` | `ArrayAggregate<T>` | `array_agg(field)` |
+| `jsonAgg(Field<?> field)` | `JsonAggregate<String>` | `json_agg(field)` |
+| `jsonbAgg(Field<?> field)` | `JsonAggregate<String>` | `jsonb_agg(field)` |
+| `jsonObjectAgg(Field<String> key, Field<?> value)` | `JsonAggregate<String>` | `json_object_agg(key, value)` |
+| `jsonbObjectAgg(Field<String> key, Field<?> value)` | `JsonAggregate<String>` | `jsonb_object_agg(key, value)` |
+| `boolAnd(Field<Boolean> field)` | `BooleanAggregate` | `bool_and(field)` – true if all values are true. |
+| `boolOr(Field<Boolean> field)` | `BooleanAggregate` | `bool_or(field)` – true if any value is true. |
+| `every(Field<Boolean> field)` | `BooleanAggregate` | `every(field)` – SQL-standard `bool_and`. |
+| `bitAnd(NumberField<N> field)` | `NumberAggregate<N>` | `bit_and(field)` |
+| `bitOr(NumberField<N> field)` | `NumberAggregate<N>` | `bit_or(field)` |
+| `anyValue(Field<T> field)` | `AggregateFunction<T>` | `any_value(field)` – an arbitrary value of the group (PostgreSQL 16+). |
+| `stddev(Field<? extends Number> field)` | `NumberAggregate<BigDecimal>` | `stddev(field)` |
+| `stddevPop(Field<? extends Number> field)` | `NumberAggregate<BigDecimal>` | `stddev_pop(field)` |
+| `stddevSamp(Field<? extends Number> field)` | `NumberAggregate<BigDecimal>` | `stddev_samp(field)` |
+| `variance(Field<? extends Number> field)` | `NumberAggregate<BigDecimal>` | `variance(field)` |
+| `varPop(Field<? extends Number> field)` | `NumberAggregate<BigDecimal>` | `var_pop(field)` |
+| `varSamp(Field<? extends Number> field)` | `NumberAggregate<BigDecimal>` | `var_samp(field)` |
+| `corr(Field<? extends Number> y, Field<? extends Number> x)` | `NumberAggregate<Double>` | `corr(y, x)` – correlation coefficient. |
+| `covarPop(Field<? extends Number> y, Field<? extends Number> x)` | `NumberAggregate<Double>` | `covar_pop(y, x)` |
+| `covarSamp(Field<? extends Number> y, Field<? extends Number> x)` | `NumberAggregate<Double>` | `covar_samp(y, x)` |
+| `regrSlope(Field<? extends Number> y, Field<? extends Number> x)` | `NumberAggregate<Double>` | `regr_slope(y, x)` |
+| `regrIntercept(Field<? extends Number> y, Field<? extends Number> x)` | `NumberAggregate<Double>` | `regr_intercept(y, x)` |
+| `percentileCont(double fraction, SortField<? extends Number> sort)` | `NumberAggregate<Double>` | `percentile_cont(fraction) WITHIN GROUP (ORDER BY sort)`, e.g. the median with 0.5. |
+| `percentileDisc(double fraction, SortField<T> sort)` | `AggregateFunction<T>` | `percentile_disc(fraction) WITHIN GROUP (ORDER BY sort)` – an actual value of the group. |
+| `mode(SortField<T> sort)` | `AggregateFunction<T>` | `mode() WITHIN GROUP (ORDER BY sort)` – the most frequent value. |
 
-## Aggregate functions
+## Window functions
 
-| Method | SQL / description |
-|---|---|
-| `count()` | `count(*)` |
-| `count(Object expr)` | `count(expr)` – counts non-null values. |
-| `countDistinct(Object expr)` | `count(DISTINCT expr)` |
-| `sum(Object expr)` | `sum(expr)` |
-| `avg(Object expr)` | `avg(expr)` |
-| `min(Object expr)` | `min(expr)` |
-| `max(Object expr)` | `max(expr)` |
-| `stringAgg(Object expr, String separator)` | `string_agg(expr, 'separator')` – add `.orderBy(..)` for a defined order. |
-| `arrayAgg(Object expr)` | `array_agg(expr)` |
-| `jsonAgg(Object expr)` | `json_agg(expr)` |
-| `jsonbAgg(Object expr)` | `jsonb_agg(expr)` |
-| `jsonObjectAgg(Object key, Object value)` | `json_object_agg(key, value)` |
-| `jsonbObjectAgg(Object key, Object value)` | `jsonb_object_agg(key, value)` |
-| `boolAnd(Object expr)` | `bool_and(expr)` – true if all values are true. |
-| `boolOr(Object expr)` | `bool_or(expr)` – true if any value is true. |
-| `every(Object expr)` | `every(expr)` – SQL-standard `bool_and`. |
-| `bitAnd(Object expr)` | `bit_and(expr)` |
-| `bitOr(Object expr)` | `bit_or(expr)` |
-| `anyValue(Object expr)` | `any_value(expr)` – an arbitrary non-null value (PostgreSQL 16+). |
-| `stddev(Object expr)` | `stddev(expr)` |
-| `stddevPop(Object expr)` | `stddev_pop(expr)` |
-| `stddevSamp(Object expr)` | `stddev_samp(expr)` |
-| `variance(Object expr)` | `variance(expr)` |
-| `varPop(Object expr)` | `var_pop(expr)` |
-| `varSamp(Object expr)` | `var_samp(expr)` |
-| `corr(Object y, Object x)` | `corr(y, x)` – correlation coefficient. |
-| `covarPop(Object y, Object x)` | `covar_pop(y, x)` |
-| `covarSamp(Object y, Object x)` | `covar_samp(y, x)` |
-| `regrSlope(Object y, Object x)` | `regr_slope(y, x)` |
-| `regrIntercept(Object y, Object x)` | `regr_intercept(y, x)` |
-| `percentileCont(double fraction)` | `percentile_cont(fraction)` – combine with `.withinGroup(expr.asc())`. |
-| `percentileDisc(double fraction)` | `percentile_disc(fraction)` – combine with `.withinGroup(expr.asc())`. |
-| `mode()` | `mode()` – most frequent value; combine with `.withinGroup(expr.asc())`. |
-| `grouping(Object... exprs)` | `GROUPING(exprs)` – tells which columns are aggregated in a grouping set. |
-| `rollup(Object... exprs)` | `ROLLUP (exprs)` for `GROUP BY`. |
-| `cube(Object... exprs)` | `CUBE (exprs)` for `GROUP BY`. |
-| `groupingSets(Object... sets)` | `GROUPING SETS (...)` for `GROUP BY`; build each set with `groupingSet(Object...)`: `groupingSets(groupingSet(a, b), groupingSet(a), groupingSet())`. |
-| `groupingSet(Object... exprs)` | One set for `groupingSets`: `(a, b)` or `()`. |
-
-## Window functions (use with .over(..))
-
-| Method | SQL / description |
-|---|---|
-| `rowNumber()` | `row_number()` |
-| `rank()` | `rank()` |
-| `denseRank()` | `dense_rank()` |
-| `percentRank()` | `percent_rank()` |
-| `cumeDist()` | `cume_dist()` |
-| `ntile(int buckets)` | `ntile(buckets)` |
-| `lag(Object expr)` | `lag(expr)` – value of the previous row. |
-| `lag(Object expr, int offset)` | `lag(expr, offset)` |
-| `lag(Object expr, int offset, Object defaultValue)` | `lag(expr, offset, default)` |
-| `lead(Object expr)` | `lead(expr)` – value of the next row. |
-| `lead(Object expr, int offset)` | `lead(expr, offset)` |
-| `lead(Object expr, int offset, Object defaultValue)` | `lead(expr, offset, default)` |
-| `firstValue(Object expr)` | `first_value(expr)` |
-| `lastValue(Object expr)` | `last_value(expr)` – usually needs a frame such as `rowsBetween(unboundedPreceding(), unboundedFollowing())`. |
-| `nthValue(Object expr, int n)` | `nth_value(expr, n)` |
+| Method | Returns | Description |
+|---|---|---|
+| `rowNumber()` | `WindowFunction<NumberField<Long>>` | `row_number()` – use with `over(..)`. |
+| `rank()` | `WindowFunction<NumberField<Long>>` | `rank()` |
+| `denseRank()` | `WindowFunction<NumberField<Long>>` | `dense_rank()` |
+| `percentRank()` | `WindowFunction<NumberField<Double>>` | `percent_rank()` |
+| `cumeDist()` | `WindowFunction<NumberField<Double>>` | `cume_dist()` |
+| `ntile(int buckets)` | `WindowFunction<NumberField<Integer>>` | `ntile(buckets)` |
+| `lag(Field<T> field)` | `WindowFunction<Field<T>>` | `lag(field)` – the value of the previous row. |
+| `lag(Field<T> field, int offset)` | `WindowFunction<Field<T>>` | `lag(field, offset)` |
+| `lag(Field<T> field, int offset, T defaultValue)` | `WindowFunction<Field<T>>` | `lag(field, offset, default)` |
+| `lead(Field<T> field)` | `WindowFunction<Field<T>>` | `lead(field)` – the value of the next row. |
+| `lead(Field<T> field, int offset)` | `WindowFunction<Field<T>>` | `lead(field, offset)` |
+| `lead(Field<T> field, int offset, T defaultValue)` | `WindowFunction<Field<T>>` | `lead(field, offset, default)` |
+| `firstValue(Field<T> field)` | `WindowFunction<Field<T>>` | `first_value(field)` |
+| `lastValue(Field<T> field)` | `WindowFunction<Field<T>>` | `last_value(field)` – usually needs a frame up to `UNBOUNDED FOLLOWING`. |
+| `nthValue(Field<T> field, int n)` | `WindowFunction<Field<T>>` | `nth_value(field, n)` |
 
 ## Conditional expressions
 
-| Method | SQL / description |
-|---|---|
-| `coalesce(Object... values)` | `COALESCE(a, b, ...)` – first non-null argument. |
-| `nullif(Object a, Object b)` | `NULLIF(a, b)` – null if both are equal. |
-| `greatest(Object... values)` | `GREATEST(a, b, ...)` |
-| `least(Object... values)` | `LEAST(a, b, ...)` |
+| Method | Returns | Description |
+|---|---|---|
+| `coalesce(Field<T> first, Field<T>... more)` | `Field<T>` | `COALESCE(a, b, ...)` |
+| `greatest(Field<T> first, Field<T>... more)` | `Field<T>` | `GREATEST(a, b, ...)` |
+| `least(Field<T> first, Field<T>... more)` | `Field<T>` | `LEAST(a, b, ...)` |
+| `nullif(Field<T> a, Field<T> b)` | `Field<T>` | `NULLIF(a, b)` |
+| `caseWhen(Condition condition, Field<T> result)` | `CaseWhen<T>` | Starts a searched `CASE WHEN condition THEN result ...`. |
+| `caseOf(Field<S> subject)` | `CaseOf<S>` | Starts a simple `CASE subject WHEN value THEN result ...`. |
+| `exists(AbstractSelect<?, ?> query)` | `Condition` | `EXISTS (SELECT ...)` |
+| `notExists(AbstractSelect<?, ?> query)` | `Condition` | `NOT EXISTS (SELECT ...)` |
+| `not(Condition condition)` | `Condition` | `NOT (condition)` |
+| `and(Condition... conditions)` | `Condition` | `(c1 AND c2 ...)`; `null` entries are skipped. |
+| `or(Condition... conditions)` | `Condition` | `(c1 OR c2 ...)`; `null` entries are skipped. |
+| `noCondition()` | `Condition` | `TRUE`, neutral in `and(..)`. |
 
-## String functions
+## Strings
 
-| Method | SQL / description |
-|---|---|
-| `length(Object text)` | `length(text)` |
-| `charLength(Object text)` | `char_length(text)` |
-| `octetLength(Object text)` | `octet_length(text)` – size in bytes. |
-| `bitLength(Object text)` | `bit_length(text)` |
-| `lower(Object text)` | `lower(text)` – also lower bound of a range. |
-| `upper(Object text)` | `upper(text)` – also upper bound of a range. |
-| `initcap(Object text)` | `initcap(text)` – capitalises each word. |
-| `concat(Object... values)` | `concat(a, b, ...)` – null arguments are ignored. |
-| `concatWs(String separator, Object... values)` | `concat_ws('separator', a, b, ...)` |
-| `substring(Object text, int from)` | `substring(text, from)` – 1-based. |
-| `substring(Object text, int from, int count)` | `substring(text, from, count)` – 1-based. |
-| `substring(Object text, Object from, Object count)` | `substring(text, from, count)` with expression arguments. |
-| `substringRegex(Object text, String regex)` | `substring(text FROM 'regex')` – first match of a POSIX regular expression. |
-| `left(Object text, int n)` | `left(text, n)` |
-| `right(Object text, int n)` | `right(text, n)` |
-| `trim(Object text)` | `btrim(text)` – removes leading and trailing spaces. |
-| `btrim(Object text, String characters)` | `btrim(text, 'characters')` |
-| `ltrim(Object text)` | `ltrim(text)` |
-| `ltrim(Object text, String characters)` | `ltrim(text, 'characters')` |
-| `rtrim(Object text)` | `rtrim(text)` |
-| `rtrim(Object text, String characters)` | `rtrim(text, 'characters')` |
-| `lpad(Object text, int length, String fill)` | `lpad(text, length, 'fill')` |
-| `rpad(Object text, int length, String fill)` | `rpad(text, length, 'fill')` |
-| `replace(Object text, String from, String to)` | `replace(text, 'from', 'to')` |
-| `replace(Object text, Object from, Object to)` | `replace(text, from, to)` with expression arguments. |
-| `translate(Object text, String from, String to)` | `translate(text, 'from', 'to')` – character-wise replacement. |
-| `strpos(Object text, Object substring)` | `strpos(text, substring)` – 1-based position, 0 if not found. |
-| `startsWith(Object text, Object prefix)` | `starts_with(text, prefix)` |
-| `reverse(Object text)` | `reverse(text)` |
-| `repeat(Object text, int n)` | `repeat(text, n)` |
-| `splitPart(Object text, String delimiter, int n)` | `split_part(text, 'delimiter', n)` |
-| `stringToArray(Object text, String delimiter)` | `string_to_array(text, 'delimiter')` |
-| `format(String format, Object... args)` | `format('format', args...)` – like `printf`; supports `%s`, `%I`, `%L`. |
-| `regexpReplace(Object text, String pattern, String replacement)` | `regexp_replace(text, 'pattern', 'replacement')` |
-| `regexpReplace(Object text, String pattern, String replacement, String flags)` | `regexp_replace(text, 'pattern', 'replacement', 'flags')` – e.g. flags `"gi"`. |
-| `regexpMatch(Object text, String pattern)` | `regexp_match(text, 'pattern')` – text array of the first match's groups. |
-| `regexpMatches(Object text, String pattern, String flags)` | `regexp_matches(text, 'pattern', 'flags')` – set of matches (flag `g` for all). |
-| `regexpSplitToArray(Object text, String pattern)` | `regexp_split_to_array(text, 'pattern')` |
-| `regexpSplitToTable(Object text, String pattern)` | `regexp_split_to_table(text, 'pattern')` |
-| `regexpCount(Object text, String pattern)` | `regexp_count(text, 'pattern')` (PostgreSQL 15+) |
-| `regexpSubstr(Object text, String pattern)` | `regexp_substr(text, 'pattern')` (PostgreSQL 15+) |
-| `md5(Object text)` | `md5(text)` |
-| `sha256(Object bytes)` | `sha256(bytes)` |
-| `encode(Object bytes, String format)` | `encode(bytes, 'format')` – format `base64`, `hex` or `escape`. |
-| `decode(Object text, String format)` | `decode(text, 'format')` |
-| `convertTo(Object text, String encoding)` | `convert_to(text, 'encoding')` – text to bytes. |
-| `quoteIdent(Object text)` | `quote_ident(text)` |
-| `quoteLiteral(Object text)` | `quote_literal(text)` |
-| `quoteNullable(Object text)` | `quote_nullable(text)` |
-| `toHex(Object number)` | `to_hex(number)` |
-| `ascii(Object text)` | `ascii(text)` – code of the first character. |
-| `chr(Object code)` | `chr(code)` |
+| Method | Returns | Description |
+|---|---|---|
+| `charLength(Field<String> text)` | `NumberField<Integer>` | `char_length(text)` |
+| `length(Field<String> text)` | `NumberField<Integer>` | `length(text)` |
+| `octetLength(Field<String> text)` | `NumberField<Integer>` | `octet_length(text)` – size in bytes. |
+| `bitLength(Field<String> text)` | `NumberField<Integer>` | `bit_length(text)` |
+| `lower(Field<String> text)` | `StringField` | `lower(text)` |
+| `upper(Field<String> text)` | `StringField` | `upper(text)` |
+| `initcap(Field<String> text)` | `StringField` | `initcap(text)` – capitalises each word. |
+| `concat(Field<?>... values)` | `StringField` | `concat(a, b, ...)` – `NULL` arguments are ignored. |
+| `concatWs(String separator, Field<?>... values)` | `StringField` | `concat_ws('separator', a, b, ...)` |
+| `substring(Field<String> text, int from)` | `StringField` | `substring(text, from)` – 1-based. |
+| `substring(Field<String> text, int from, int count)` | `StringField` | `substring(text, from, count)` – 1-based. |
+| `substringRegex(Field<String> text, String regex)` | `StringField` | `substring(text FROM 'regex')` – the first match of a POSIX regular expression. |
+| `left(Field<String> text, int n)` | `StringField` | `left(text, n)` |
+| `right(Field<String> text, int n)` | `StringField` | `right(text, n)` |
+| `trim(Field<String> text)` | `StringField` | `btrim(text)` |
+| `btrim(Field<String> text, String characters)` | `StringField` | `btrim(text, 'characters')` |
+| `ltrim(Field<String> text)` | `StringField` | `ltrim(text)` |
+| `ltrim(Field<String> text, String characters)` | `StringField` | `ltrim(text, 'characters')` |
+| `rtrim(Field<String> text)` | `StringField` | `rtrim(text)` |
+| `rtrim(Field<String> text, String characters)` | `StringField` | `rtrim(text, 'characters')` |
+| `lpad(Field<String> text, int length, String fill)` | `StringField` | `lpad(text, length, 'fill')` |
+| `rpad(Field<String> text, int length, String fill)` | `StringField` | `rpad(text, length, 'fill')` |
+| `replace(Field<String> text, String from, String to)` | `StringField` | `replace(text, 'from', 'to')` |
+| `replace(Field<String> text, Field<String> from, Field<String> to)` | `StringField` | `replace(text, from, to)` with expressions. |
+| `translate(Field<String> text, String from, String to)` | `StringField` | `translate(text, 'from', 'to')` – character-wise replacement. |
+| `strpos(Field<String> text, String substring)` | `NumberField<Integer>` | `strpos(text, ?)` – 1-based position, 0 if not found. |
+| `startsWith(Field<String> text, String prefix)` | `Condition` | `starts_with(text, ?)` |
+| `reverse(Field<String> text)` | `StringField` | `reverse(text)` |
+| `repeat(Field<String> text, int n)` | `StringField` | `repeat(text, n)` |
+| `splitPart(Field<String> text, String delimiter, int n)` | `StringField` | `split_part(text, 'delimiter', n)` |
+| `stringToArray(Field<String> text, String delimiter)` | `ArrayField<String>` | `string_to_array(text, 'delimiter')` |
+| `format(String format, Field<?>... args)` | `StringField` | `format('format', args...)` – supports `%s`, `%I`, `%L`. |
+| `regexpReplace(Field<String> text, String pattern, String replacement)` | `StringField` | `regexp_replace(text, 'pattern', 'replacement')` |
+| `regexpReplace(Field<String> text, String pattern, String replacement, String flags)` | `StringField` | `regexp_replace(text, 'pattern', 'replacement', 'flags')`, e.g. flags `"gi"`. |
+| `regexpMatch(Field<String> text, String pattern)` | `ArrayField<String>` | `regexp_match(text, 'pattern')` – the groups of the first match. |
+| `regexpMatches(Field<String> text, String pattern, String flags)` | `ArrayField<String>` | `regexp_matches(text, 'pattern', 'flags')` – set-returning. |
+| `regexpSplitToArray(Field<String> text, String pattern)` | `ArrayField<String>` | `regexp_split_to_array(text, 'pattern')` |
+| `regexpSplitToTable(Field<String> text, String pattern)` | `StringField` | `regexp_split_to_table(text, 'pattern')` – set-returning. |
+| `regexpCount(Field<String> text, String pattern)` | `NumberField<Integer>` | `regexp_count(text, 'pattern')` (PostgreSQL 15+) |
+| `regexpSubstr(Field<String> text, String pattern)` | `StringField` | `regexp_substr(text, 'pattern')` (PostgreSQL 15+) |
+| `md5(Field<String> text)` | `StringField` | `md5(text)` |
+| `sha256(Field<byte[]> bytes)` | `Field<byte[]>` | `sha256(bytes)` |
+| `encode(Field<byte[]> bytes, String format)` | `StringField` | `encode(bytes, 'format')` – `base64`, `hex` or `escape`. |
+| `decode(Field<String> text, String format)` | `Field<byte[]>` | `decode(text, 'format')` |
+| `convertTo(Field<String> text, String encoding)` | `Field<byte[]>` | `convert_to(text, 'encoding')` |
+| `quoteIdent(Field<String> text)` | `StringField` | `quote_ident(text)` |
+| `quoteLiteral(Field<String> text)` | `StringField` | `quote_literal(text)` |
+| `quoteNullable(Field<String> text)` | `StringField` | `quote_nullable(text)` |
+| `toHex(Field<? extends Number> number)` | `StringField` | `to_hex(number)` |
+| `ascii(Field<String> text)` | `NumberField<Integer>` | `ascii(text)` – the code of the first character. |
+| `chr(Field<Integer> code)` | `StringField` | `chr(code)` |
 
-## Mathematical functions
+## Mathematics
 
-| Method | SQL / description |
-|---|---|
-| `abs(Object x)` | `abs(x)` |
-| `ceil(Object x)` | `ceil(x)` |
-| `floor(Object x)` | `floor(x)` |
-| `round(Object x)` | `round(x)` |
-| `round(Object x, int decimals)` | `round(x, decimals)` – `x` must be `numeric`. |
-| `trunc(Object x)` | `trunc(x)` |
-| `trunc(Object x, int decimals)` | `trunc(x, decimals)` |
-| `mod(Object a, Object b)` | `mod(a, b)` |
-| `div(Object a, Object b)` | `div(a, b)` – integer quotient. |
-| `power(Object base, Object exponent)` | `power(base, exponent)` |
-| `sqrt(Object x)` | `sqrt(x)` |
-| `cbrt(Object x)` | `cbrt(x)` |
-| `exp(Object x)` | `exp(x)` |
-| `ln(Object x)` | `ln(x)` |
-| `log10(Object x)` | `log10(x)` |
-| `log(Object base, Object x)` | `log(base, x)` |
-| `sign(Object x)` | `sign(x)` |
-| `pi()` | `pi()` |
-| `random()` | `random()` – value in [0, 1). |
-| `degrees(Object radians)` | `degrees(radians)` |
-| `radians(Object degrees)` | `radians(degrees)` |
-| `sin(Object x)` | `sin(x)` |
-| `cos(Object x)` | `cos(x)` |
-| `tan(Object x)` | `tan(x)` |
-| `asin(Object x)` | `asin(x)` |
-| `acos(Object x)` | `acos(x)` |
-| `atan(Object x)` | `atan(x)` |
-| `atan2(Object y, Object x)` | `atan2(y, x)` |
-| `gcd(Object a, Object b)` | `gcd(a, b)` |
-| `lcm(Object a, Object b)` | `lcm(a, b)` |
-| `widthBucket(Object x, Object low, Object high, int buckets)` | `width_bucket(x, low, high, buckets)` – histogram bucket number. |
+| Method | Returns | Description |
+|---|---|---|
+| `abs(NumberField<N> x)` | `NumberField<N>` | `abs(x)` |
+| `ceil(NumberField<N> x)` | `NumberField<N>` | `ceil(x)` |
+| `floor(NumberField<N> x)` | `NumberField<N>` | `floor(x)` |
+| `round(NumberField<N> x)` | `NumberField<N>` | `round(x)` |
+| `round(Field<? extends Number> x, int decimals)` | `NumberField<BigDecimal>` | `round(x::numeric, decimals)` |
+| `trunc(NumberField<N> x)` | `NumberField<N>` | `trunc(x)` |
+| `trunc(Field<? extends Number> x, int decimals)` | `NumberField<BigDecimal>` | `trunc(x::numeric, decimals)` |
+| `mod(NumberField<N> a, Field<? extends Number> b)` | `NumberField<N>` | `mod(a, b)` |
+| `div(Field<? extends Number> a, Field<? extends Number> b)` | `NumberField<BigDecimal>` | `div(a, b)` – integer quotient. |
+| `power(Field<? extends Number> base, Field<? extends Number> exponent)` | `NumberField<Double>` | `power(base, exponent)` |
+| `sqrt(Field<? extends Number> x)` | `NumberField<Double>` | `sqrt(x)` |
+| `cbrt(Field<? extends Number> x)` | `NumberField<Double>` | `cbrt(x)` |
+| `exp(Field<? extends Number> x)` | `NumberField<Double>` | `exp(x)` |
+| `ln(Field<? extends Number> x)` | `NumberField<Double>` | `ln(x)` |
+| `log10(Field<? extends Number> x)` | `NumberField<Double>` | `log10(x)` |
+| `log(Field<? extends Number> base, Field<? extends Number> x)` | `NumberField<BigDecimal>` | `log(base, x)` |
+| `sign(NumberField<N> x)` | `NumberField<N>` | `sign(x)` |
+| `pi()` | `NumberField<Double>` | `pi()` |
+| `random()` | `NumberField<Double>` | `random()` – a value in [0, 1). |
+| `degrees(Field<? extends Number> radians)` | `NumberField<Double>` | `degrees(radians)` |
+| `radians(Field<? extends Number> degrees)` | `NumberField<Double>` | `radians(degrees)` |
+| `sin(Field<? extends Number> x)` | `NumberField<Double>` | `sin(x)` |
+| `cos(Field<? extends Number> x)` | `NumberField<Double>` | `cos(x)` |
+| `tan(Field<? extends Number> x)` | `NumberField<Double>` | `tan(x)` |
+| `asin(Field<? extends Number> x)` | `NumberField<Double>` | `asin(x)` |
+| `acos(Field<? extends Number> x)` | `NumberField<Double>` | `acos(x)` |
+| `atan(Field<? extends Number> x)` | `NumberField<Double>` | `atan(x)` |
+| `atan2(Field<? extends Number> y, Field<? extends Number> x)` | `NumberField<Double>` | `atan2(y, x)` |
+| `gcd(NumberField<N> a, NumberField<N> b)` | `NumberField<N>` | `gcd(a, b)` |
+| `lcm(NumberField<N> a, NumberField<N> b)` | `NumberField<N>` | `lcm(a, b)` |
 
 ## Date and time
 
-| Method | SQL / description |
-|---|---|
-| `now()` | `now()` – start of the current transaction. |
-| `clockTimestamp()` | `clock_timestamp()` – actual current time. |
-| `statementTimestamp()` | `statement_timestamp()` |
-| `currentDate()` | `CURRENT_DATE` |
-| `currentTime()` | `CURRENT_TIME` |
-| `currentTimestamp()` | `CURRENT_TIMESTAMP` |
-| `localTime()` | `LOCALTIME` |
-| `localTimestamp()` | `LOCALTIMESTAMP` |
-| `dateTrunc(String field, Object source)` | `date_trunc('field', source)` – field e.g. `"day"`, `"month"`, `"year"`. |
-| `dateTrunc(String field, Object source, String timeZone)` | `date_trunc('field', source, 'time zone')` (PostgreSQL 12+) |
-| `datePart(String field, Object source)` | `date_part('field', source)` |
-| `extract(String field, Object source)` | `EXTRACT(field FROM source)` – field e.g. `"YEAR"`, `"DOW"`, `"EPOCH"`. |
-| `dateBin(String stride, Object source, Object origin)` | `date_bin('stride', source, origin)` (PostgreSQL 14+) – e.g. stride `"15 minutes"`. |
-| `age(Object timestamp)` | `age(timestamp)` – interval from the timestamp to today. |
-| `age(Object end, Object start)` | `age(end, start)` |
-| `interval(String text)` | `INTERVAL 'text'`, e.g. `interval("3 days")`, `interval("1 hour 30 minutes")`. |
-| `makeDate(Object year, Object month, Object day)` | `make_date(year, month, day)` |
-| `makeTime(Object hour, Object minute, Object second)` | `make_time(hour, minute, second)` |
-| `makeTimestamp(Object year, Object month, Object day, Object hour, Object minute, Object second)` | `make_timestamp(year, month, day, hour, minute, second)` |
-| `toChar(Object value, String format)` | `to_char(value, 'format')` – e.g. `"YYYY-MM-DD HH24:MI"` or `"FM999G990D00"`. |
-| `toDate(Object text, String format)` | `to_date(text, 'format')` |
-| `toTimestamp(Object text, String format)` | `to_timestamp(text, 'format')` |
-| `toTimestamp(Object epochSeconds)` | `to_timestamp(epochSeconds)` |
-| `toNumber(Object text, String format)` | `to_number(text, 'format')` |
-| `atTimeZone(Object source, String zone)` | `(source AT TIME ZONE 'zone')`, e.g. `atTimeZone(o.createdAt, "Europe/Zurich")`. |
-| `atTimeZone(Object source, Object zone)` | `(source AT TIME ZONE zone)` with an expression as zone. |
-| `justifyDays(Object interval)` | `justify_days(interval)` |
-| `justifyHours(Object interval)` | `justify_hours(interval)` |
-| `justifyInterval(Object interval)` | `justify_interval(interval)` |
-| `generateSeries(Object start, Object stop)` | `generate_series(start, stop)` – numbers or, with a step, timestamps. Use in `FROM`. |
-| `generateSeries(Object start, Object stop, Object step)` | `generate_series(start, stop, step)`, e.g. `generateSeries(from, to, interval("1 day"))`. |
+| Method | Returns | Description |
+|---|---|---|
+| `now()` | `TemporalField<Instant>` | `now()` – the start of the current transaction. |
+| `clockTimestamp()` | `TemporalField<Instant>` | `clock_timestamp()` – the actual current time. |
+| `statementTimestamp()` | `TemporalField<Instant>` | `statement_timestamp()` |
+| `currentDate()` | `TemporalField<LocalDate>` | `CURRENT_DATE` (in the session time zone) |
+| `localTime()` | `TemporalField<LocalTime>` | `LOCALTIME` |
+| `localTimestamp()` | `TemporalField<LocalDateTime>` | `LOCALTIMESTAMP` |
+| `currentTimestamp()` | `TemporalField<Instant>` | `CURRENT_TIMESTAMP` |
+| `dateTrunc(DatePart part, TemporalField<T> value)` | `TemporalField<T>` | `CAST(date_trunc('part', value) AS type)` |
+| `extract(DatePart part, TemporalField<?> value)` | `NumberField<BigDecimal>` | `EXTRACT(part FROM value)` |
+| `datePart(DatePart part, TemporalField<?> value)` | `NumberField<Double>` | `date_part('part', value)` |
+| `dateBin(Duration stride, TemporalField<T> value, T origin)` | `TemporalField<T>` | `date_bin('stride', value, origin)` (PostgreSQL 14+) – e.g. 15-minute buckets. |
+| `age(TemporalField<?> end, TemporalField<?> start)` | `StringField` | `age(end, start)` as text, because it has months and years. |
+| `interval(Duration duration)` | `Field<Duration>` | An interval bind parameter. |
+| `makeDate(Field<Integer> year, Field<Integer> month, Field<Integer> day)` | `TemporalField<LocalDate>` | `make_date(year, month, day)` |
+| `makeTime(Field<Integer> hour, Field<Integer> minute, Field<Double> second)` | `TemporalField<LocalTime>` | `make_time(hour, minute, second)` |
+| `toChar(Field<?> value, String format)` | `StringField` | `to_char(value, 'format')`, e.g. `"YYYY-MM-DD"` or `"FM999G990D00"`. |
+| `toDate(Field<String> text, String format)` | `TemporalField<LocalDate>` | `to_date(text, 'format')` |
+| `toTimestamp(Field<String> text, String format)` | `TemporalField<Instant>` | `to_timestamp(text, 'format')` |
+| `toTimestamp(NumberField<?> epochSeconds)` | `TemporalField<Instant>` | `to_timestamp(epochSeconds)` |
+| `toNumber(Field<String> text, String format)` | `NumberField<BigDecimal>` | `to_number(text, 'format')` |
+| `localDateTimeAt(Field<Instant> instant, ZoneId zone)` | `TemporalField<LocalDateTime>` | `(instant AT TIME ZONE 'zone')` – the local date-time in a zone. |
+| `instantAt(Field<LocalDateTime> local, ZoneId zone)` | `TemporalField<Instant>` | `(local AT TIME ZONE 'zone')` – the instant of a local date-time in a zone. |
+| `generateSeries(int start, int stop)` | `NumberField<Integer>` | `generate_series(start, stop)` – set-returning, use with `tableOf(..)`. |
+| `generateSeries(TemporalField<T> start, TemporalField<T> stop, Duration step)` | `TemporalField<T>` | `generate_series(start, stop, step)` for `timestamptz` or `timestamp` bounds; set-returning, use with `tableOf(..)`.  @throws IllegalArgumentException for `date` bounds, for which PostgreSQL returns timestamps; convert them first |
 
 ## Ranges
 
-| Method | SQL / description |
-|---|---|
-| `daterange(Object lower, Object upper)` | `daterange(lower, upper)` – bounds `[)`. |
-| `daterange(Object lower, Object upper, String bounds)` | `daterange(lower, upper, 'bounds')` – bounds e.g. `"[]"`. |
-| `tsrange(Object lower, Object upper)` | `tsrange(lower, upper)` |
-| `tstzrange(Object lower, Object upper)` | `tstzrange(lower, upper)` |
-| `int4range(Object lower, Object upper)` | `int4range(lower, upper)` |
-| `int8range(Object lower, Object upper)` | `int8range(lower, upper)` |
-| `numrange(Object lower, Object upper)` | `numrange(lower, upper)` |
-| `isEmpty(Object range)` | `isempty(range)` |
+| Method | Returns | Description |
+|---|---|---|
+| `daterange(Field<LocalDate> lower, Field<LocalDate> upper)` | `Field<String>` | `daterange(lower, upper, '[)')` |
+| `daterange(Field<LocalDate> lower, Field<LocalDate> upper, String bounds)` | `Field<String>` | `daterange(lower, upper, 'bounds')` with bounds such as `"[]"`. |
+| `tstzrange(Field<Instant> lower, Field<Instant> upper)` | `Field<String>` | `tstzrange(lower, upper, '[)')` |
+| `tsrange(Field<LocalDateTime> lower, Field<LocalDateTime> upper)` | `Field<String>` | `tsrange(lower, upper, '[)')` |
+| `int4range(Field<Integer> lower, Field<Integer> upper)` | `Field<String>` | `int4range(lower, upper, '[)')` |
+| `int8range(Field<Long> lower, Field<Long> upper)` | `Field<String>` | `int8range(lower, upper, '[)')` |
+| `numrange(Field<BigDecimal> lower, Field<BigDecimal> upper)` | `Field<String>` | `numrange(lower, upper, '[)')` |
+| `rangeContains(Field<String> range, Field<T> value)` | `Condition` | `range @> value` – the range contains the value. |
+| `rangeOverlaps(Field<String> a, Field<String> b)` | `Condition` | `a && b` – the ranges overlap. |
+| `isEmpty(Field<String> range)` | `Condition` | `isempty(range)` |
 
-## JSON / JSONB
+## JSON
 
-| Method | SQL / description |
-|---|---|
-| `jsonGet(Object json, String key)` | `(json -> 'key')` – object field as JSON. |
-| `jsonGet(Object json, int index)` | `(json -> index)` – array element as JSON (0-based, negative counts from the end). |
-| `jsonGetText(Object json, String key)` | `(json ->> 'key')` – object field as text. |
-| `jsonGetText(Object json, int index)` | `(json ->> index)` – array element as text. |
-| `jsonPath(Object json, String... path)` | `(json #> '{a,b}')` – value at a path as JSON. |
-| `jsonPathText(Object json, String... path)` | `(json #>> '{a,b}')` – value at a path as text. |
-| `jsonb(Object value)` | `CAST(value AS jsonb)` – e.g. `jsonb(val(jsonString))`. |
-| `jsonbBuildObject(Object... keyValues)` | `jsonb_build_object(k1, v1, k2, v2, ...)` – keys given as Java strings become literals. |
-| `jsonBuildObject(Object... keyValues)` | `json_build_object(k1, v1, ...)` – keys given as Java strings become literals. |
-| `jsonbBuildArray(Object... values)` | `jsonb_build_array(values...)` |
-| `jsonBuildArray(Object... values)` | `json_build_array(values...)` |
-| `toJson(Object value)` | `to_json(value)` |
-| `toJsonb(Object value)` | `to_jsonb(value)` |
-| `rowToJson(Object row)` | `row_to_json(row)` – e.g. `rowToJson(raw("p"))` for the whole row of alias `p`. |
-| `jsonbSet(Object target, String[] path, Object newValue)` | `jsonb_set(target, '{path}', newValue)` |
-| `jsonbSet(Object target, String[] path, Object newValue, boolean createMissing)` | `jsonb_set(target, '{path}', newValue, createMissing)` |
-| `jsonbInsert(Object target, String[] path, Object newValue)` | `jsonb_insert(target, '{path}', newValue)` |
-| `jsonbConcat(Object a, Object b)` | `(a \|\| b)` – merge two jsonb values. |
-| `jsonbDelete(Object json, String key)` | `(json - 'key')` – remove a key. |
-| `jsonbDeletePath(Object json, String... path)` | `(json #- '{path}')` – remove the value at a path. |
-| `jsonbTypeof(Object json)` | `jsonb_typeof(json)` |
-| `jsonbArrayLength(Object json)` | `jsonb_array_length(json)` |
-| `jsonbArrayElements(Object json)` | `jsonb_array_elements(json)` – set-returning, use in `FROM`. |
-| `jsonbArrayElementsText(Object json)` | `jsonb_array_elements_text(json)` – set-returning. |
-| `jsonbEach(Object json)` | `jsonb_each(json)` – set of key/value pairs. |
-| `jsonbEachText(Object json)` | `jsonb_each_text(json)` |
-| `jsonbObjectKeys(Object json)` | `jsonb_object_keys(json)` |
-| `jsonbStripNulls(Object json)` | `jsonb_strip_nulls(json)` |
-| `jsonbPretty(Object json)` | `jsonb_pretty(json)` |
-| `jsonbPathQuery(Object json, String jsonPath)` | `jsonb_path_query(json, 'jsonpath')` – set-returning. |
-| `jsonbPathQueryFirst(Object json, String jsonPath)` | `jsonb_path_query_first(json, 'jsonpath')` |
-| `jsonbPathQueryArray(Object json, String jsonPath)` | `jsonb_path_query_array(json, 'jsonpath')` |
-| `jsonbPathExists(Object json, String jsonPath)` | `jsonb_path_exists(json, 'jsonpath')` |
-| `jsonbPathMatch(Object json, String jsonPath)` | `jsonb_path_match(json, 'jsonpath predicate')` |
+| Method | Returns | Description |
+|---|---|---|
+| `pair(String key, Field<?> value)` | `JsonPair` | A pair for `jsonbBuildObject(..)`. |
+| `jsonb(Field<String> text)` | `JsonField<String>` | `CAST(text AS jsonb)` |
+| `jsonbBuildObject(JsonPair... pairs)` | `JsonField<String>` | `jsonb_build_object('k1', v1, 'k2', v2, ...)` |
+| `jsonBuildObject(JsonPair... pairs)` | `JsonField<String>` | `json_build_object('k1', v1, ...)` |
+| `jsonbBuildArray(Field<?>... values)` | `JsonField<String>` | `jsonb_build_array(values...)` |
+| `jsonBuildArray(Field<?>... values)` | `JsonField<String>` | `json_build_array(values...)` |
+| `toJson(Field<?> value)` | `JsonField<String>` | `to_json(value)` |
+| `toJsonb(Field<?> value)` | `JsonField<String>` | `to_jsonb(value)` |
+| `rowToJson(Table<?> table)` | `JsonField<String>` | `row_to_json(t)` – a whole row of a table in the query as JSON. |
+| `jsonbSet(JsonField<T> target, String[] path, Field<?> value, boolean createMissing)` | `JsonField<T>` | `jsonb_set(target, '{path`', value, createMissing)} |
+| `jsonbInsert(JsonField<T> target, String[] path, Field<?> value)` | `JsonField<T>` | `jsonb_insert(target, '{path`', value)} |
+| `jsonbTypeof(JsonField<?> json)` | `StringField` | `jsonb_typeof(json)` |
+| `jsonbArrayLength(JsonField<?> json)` | `NumberField<Integer>` | `jsonb_array_length(json)` |
+| `jsonbArrayElements(JsonField<?> json)` | `JsonField<String>` | `jsonb_array_elements(json)` – set-returning. |
+| `jsonbArrayElementsText(JsonField<?> json)` | `StringField` | `jsonb_array_elements_text(json)` – set-returning. |
+| `jsonbObjectKeys(JsonField<?> json)` | `StringField` | `jsonb_object_keys(json)` – set-returning. |
+| `jsonbStripNulls(JsonField<T> json)` | `JsonField<T>` | `jsonb_strip_nulls(json)` |
+| `jsonbPretty(JsonField<?> json)` | `StringField` | `jsonb_pretty(json)` |
+| `jsonbPathQuery(JsonField<?> json, String jsonPath)` | `JsonField<String>` | `jsonb_path_query(json, 'path')` – set-returning. |
+| `jsonbPathQueryFirst(JsonField<?> json, String jsonPath)` | `JsonField<String>` | `jsonb_path_query_first(json, 'path')` |
+| `jsonbPathQueryArray(JsonField<?> json, String jsonPath)` | `JsonField<String>` | `jsonb_path_query_array(json, 'path')` |
 
 ## Arrays
 
-| Method | SQL / description |
-|---|---|
-| `array(Object... elements)` | `ARRAY[a, b, c]` |
-| `arrayOf(Object subQuery)` | `ARRAY(SELECT ...)` – collects a sub-query into an array. |
-| `arrayElement(Object array, int index)` | `(array)[index]` – 1-based element access. |
-| `arrayLength(Object array, int dimension)` | `array_length(array, dimension)` |
-| `cardinality(Object array)` | `cardinality(array)` – total number of elements. |
-| `arrayAppend(Object array, Object element)` | `array_append(array, element)` |
-| `arrayPrepend(Object element, Object array)` | `array_prepend(element, array)` |
-| `arrayCat(Object a, Object b)` | `array_cat(a, b)` |
-| `arrayRemove(Object array, Object element)` | `array_remove(array, element)` |
-| `arrayReplace(Object array, Object from, Object to)` | `array_replace(array, from, to)` |
-| `arrayPosition(Object array, Object element)` | `array_position(array, element)` |
-| `arrayPositions(Object array, Object element)` | `array_positions(array, element)` |
-| `arrayToString(Object array, String separator)` | `array_to_string(array, 'separator')` |
-| `arrayLower(Object array, int dimension)` | `array_lower(array, dimension)` |
-| `arrayUpper(Object array, int dimension)` | `array_upper(array, dimension)` |
-| `unnest(Object array)` | `unnest(array)` – set-returning, use in `FROM` or the select list. |
+| Method | Returns | Description |
+|---|---|---|
+| `array(Field<T> first, Field<T>... more)` | `ArrayField<T>` | `ARRAY[a, b, c]` |
+| `arrayOf(Select1<T> query)` | `ArrayField<T>` | `ARRAY(SELECT ...)` |
+| `arrayLength(ArrayField<?> array, int dimension)` | `NumberField<Integer>` | `array_length(array, dimension)` |
+| `cardinality(ArrayField<?> array)` | `NumberField<Integer>` | `cardinality(array)` |
+| `arrayPrepend(E element, ArrayField<E> array)` | `ArrayField<E>` | `array_prepend(?, array)` |
+| `arrayCat(ArrayField<E> a, Field<E[]> b)` | `ArrayField<E>` | `array_cat(a, b)` |
+| `arrayReplace(ArrayField<E> array, E from, E to)` | `ArrayField<E>` | `array_replace(array, ?, ?)` |
+| `arrayPosition(ArrayField<E> array, E element)` | `NumberField<Integer>` | `array_position(array, ?)` – 1-based, `NULL` if absent. |
+| `arrayPositions(ArrayField<E> array, E element)` | `ArrayField<Integer>` | `array_positions(array, ?)` |
+| `arrayToString(ArrayField<?> array, String separator)` | `StringField` | `array_to_string(array, 'separator')` |
+| `arrayLower(ArrayField<?> array, int dimension)` | `NumberField<Integer>` | `array_lower(array, dimension)` |
+| `arrayUpper(ArrayField<?> array, int dimension)` | `NumberField<Integer>` | `array_upper(array, dimension)` |
+| `unnest(ArrayField<E> array)` | `Field<E>` | `unnest(array)` – set-returning. |
 
 ## Full-text search
 
-| Method | SQL / description |
-|---|---|
-| `toTsvector(Object document)` | `to_tsvector(document)` – uses the default text search configuration. |
-| `toTsvector(String config, Object document)` | `to_tsvector('config', document)` – e.g. config `"english"`. |
-| `toTsquery(Object query)` | `to_tsquery(query)` |
-| `toTsquery(String config, Object query)` | `to_tsquery('config', query)` |
-| `plaintoTsquery(String config, Object text)` | `plainto_tsquery('config', text)` – plain text, all words must match. |
-| `phrasetoTsquery(String config, Object text)` | `phraseto_tsquery('config', text)` – words must appear in order. |
-| `websearchToTsquery(String config, Object text)` | `websearch_to_tsquery('config', text)` – Google-like syntax (`"quoted" -excluded or`). |
-| `tsRank(Object vector, Object query)` | `ts_rank(vector, query)` |
-| `tsRankCd(Object vector, Object query)` | `ts_rank_cd(vector, query)` – cover density ranking. |
-| `tsHeadline(String config, Object document, Object query)` | `ts_headline('config', document, query)` – highlighted excerpt. |
-| `setweight(Object vector, String weight)` | `setweight(vector, 'A'\|'B'\|'C'\|'D')` |
+| Method | Returns | Description |
+|---|---|---|
+| `toTsvector(String config, Field<String> document)` | `Field<String>` | `to_tsvector('config', document)` |
+| `toTsvector(Field<String> document)` | `Field<String>` | `to_tsvector(document)` with the default configuration. |
+| `toTsquery(String config, String query)` | `Field<String>` | `to_tsquery('config', ?)` |
+| `plaintoTsquery(String config, String text)` | `Field<String>` | `plainto_tsquery('config', ?)` – all words must match. |
+| `phrasetoTsquery(String config, String text)` | `Field<String>` | `phraseto_tsquery('config', ?)` – the words must appear in order. |
+| `websearchToTsquery(String config, String text)` | `Field<String>` | `websearch_to_tsquery('config', ?)` – search-engine syntax for user input. |
+| `websearchToTsquery(String config, Field<String> text)` | `Field<String>` | `websearch_to_tsquery('config', text)` with an expression. |
+| `tsMatches(Field<String> vector, Field<String> query)` | `Condition` | `vector @@ query` |
+| `tsRank(Field<String> vector, Field<String> query)` | `NumberField<Float>` | `ts_rank(vector, query)` |
+| `tsRankCd(Field<String> vector, Field<String> query)` | `NumberField<Float>` | `ts_rank_cd(vector, query)` – cover density ranking. |
+| `tsHeadline(String config, Field<String> document, Field<String> query)` | `StringField` | `ts_headline('config', document, query)` – a highlighted excerpt. |
+| `setweight(Field<String> vector, char weight)` | `Field<String>` | `setweight(vector, 'A'\|'B'\|'C'\|'D')` |
 
-## Sequences, system information, misc
+## Sequences, system information
 
-| Method | SQL / description |
-|---|---|
-| `genRandomUuid()` | `gen_random_uuid()` (PostgreSQL 13+) |
-| `nextval(String sequence)` | `nextval('sequence')` |
-| `currval(String sequence)` | `currval('sequence')` |
-| `setval(String sequence, Object value)` | `setval('sequence', value)` |
-| `lastval()` | `lastval()` |
-| `currentUser()` | `CURRENT_USER` |
-| `sessionUser()` | `SESSION_USER` |
-| `currentSchema()` | `current_schema()` |
-| `currentDatabase()` | `current_database()` |
-| `version()` | `version()` |
-| `pgTypeof(Object value)` | `pg_typeof(value)` – handy for debugging. |
-| `row(Object... values)` | `ROW(a, b, ...)` – row constructor, e.g. for `eq(row(a, b), row(x, y))`. |
-## See also
+| Method | Returns | Description |
+|---|---|---|
+| `genRandomUuid()` | `Field<UUID>` | `gen_random_uuid()` (version 4) |
+| `nextval(String sequence)` | `NumberField<Long>` | `nextval('sequence')` |
+| `currval(String sequence)` | `NumberField<Long>` | `currval('sequence')` |
+| `setval(String sequence, long value)` | `NumberField<Long>` | `setval('sequence', ?)` |
+| `lastval()` | `NumberField<Long>` | `lastval()` |
+| `currentUser()` | `StringField` | `CURRENT_USER` |
+| `sessionUser()` | `StringField` | `SESSION_USER` |
+| `currentSchema()` | `StringField` | `current_schema()` |
+| `currentDatabase()` | `StringField` | `current_database()` |
+| `version()` | `StringField` | `version()` |
+| `pgTypeof(Field<?> value)` | `StringField` | `pg_typeof(value)::text` – handy for debugging. |
 
-- Conditions and operators (`eq`, `in`, `like`, `matches`, `contains`, `overlaps`, `tsMatches`, `exists`, `any`/`all`, …) are listed in [Expressions & conditions](expressions.md#conditions).
-- Building blocks such as `val`, `inline`, `raw`, `sql`, `cast`, `caseWhen`, `caseOf`, `window`, `partitionBy`, `lateral`, `asc`/`desc` and `defaultValue` are covered in [Expressions & conditions](expressions.md).
+## GROUP BY elements
+
+| Method | Returns | Description |
+|---|---|---|
+| `rollup(Field<?>... fields)` | `GroupingElement` | `ROLLUP (fields)` |
+| `cube(Field<?>... fields)` | `GroupingElement` | `CUBE (fields)` |
+| `groupingSet(Field<?>... fields)` | `GroupingElement` | One set for `groupingSets`: `(a, b)` or `()`. |
+| `groupingSets(GroupingElement... sets)` | `GroupingElement` | `GROUPING SETS ((a, b), (a), ())` |
+| `grouping(Field<?>... fields)` | `NumberField<Integer>` | `GROUPING(fields)` – which fields are aggregated away in a grouping set. |

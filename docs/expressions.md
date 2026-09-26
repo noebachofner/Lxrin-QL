@@ -1,224 +1,156 @@
-# Expressions & conditions
+# Fields and types
 
-All examples assume `import static ch.lxrin.ql.LxrinQL.*;`.
+All examples assume `import static ch.lxrin.ql.dsl.Dsl.*;` and the generated tables.
 
-## The operand rule
+## The rule: a Java value is always a bind parameter
 
-Almost every DSL method accepts `Object` operands. How an operand is rendered
-depends only on its Java type:
-
-| Operand | Rendered as | Example | SQL |
-|---|---|---|---|
-| `Expression` (column, function, sub-query, `val`, `inline`, …) | the expression | `p.lastName` | `p.LAST_NAME` |
-| `String` | **SQL fragment, verbatim** | `"t.NAME"`, `":status"`, `"now()"` | `t.NAME` |
-| `null` | `NULL` | | |
-| anything else | bind parameter | `42`, `LocalDate.now()`, `UUID`, `new Long[]{…}` | `:lq0` |
-
-So `eq(p.age, 18)` binds 18 automatically, but `eq(p.lastName, "Smith")`
-renders `p.LAST_NAME = Smith`, which is SQL and not a value. Use
-`val("Smith")` for text values:
+Every DSL method that takes a Java value sends it as a typed bind parameter
+(`?`). There are no `Object` operands and no string fragments.
 
 ```java
-eq(p.lastName, val(name))        // p.LAST_NAME = :lq0   ✔
-eq(p.lastName, b.setString(name))// p.LAST_NAME = :p0    ✔ (Binds)
-eq(p.lastName, inline("Smith"))  // p.LAST_NAME = 'Smith' ✔ (escaped literal)
-eq(p.lastName, "p.FIRST_NAME")   // column comparison    ✔
-eq(p.lastName, name)             // ✘ user input becomes SQL
+USERS.NAME.eq("x' OR '1'='1")        // app_user.name = ?    (the string is data)
+USERS.CREATED_AT.gt(Instant.now())   // app_user.created_at > ?
+USERS.CREATED_AT.eq("abc")           // does not compile
+USERS.EMAIL.plus(1)                  // does not compile: arithmetic only on numbers
+USERS.NAME.eq(USERS.VERSION)         // does not compile: String vs Long
 ```
 
-The function catalog has one addition to this rule. Parameters that are
-**declared** as `String` or a primitive (formats, date fields, separators,
-regex patterns, JSON keys, …) are constants and are written as escaped
-literals: `toChar(o.createdAt, "YYYY-MM-DD")` → `to_char(o.CREATED_AT, 'YYYY-MM-DD')`.
+The only way to write SQL text is [`Sql`](#raw-sql).
 
-## Values: `val`, `inline`, `raw`, `sql`, `ident`
+## Fields
 
-| Method | Purpose | Example → SQL |
+`Field<T>` is any typed expression: a column, a function call, a parameter or a
+sub-query. Families of types add their own operations:
+
+| Interface | Types | Extra operations |
 |---|---|---|
-| `val(x)` | bind parameter, name generated | `val("Ada")` → `:lq0` |
-| `inline(x)` | escaped literal in the SQL text | `inline("O'Brien")` → `'O''Brien'`, `inline(LocalDate.of(2024,1,31))` → `DATE '2024-01-31'` |
-| `raw(sql)` | SQL fragment as an `Expression` (to call `.as`, `.eq`, …) | `raw("now()").as("ts")` |
-| `sql(template, args…)` | template with `{0}`, `{1}` placeholders | `sql("{0} <-> {1}", p.location, val(point))` |
-| `ident(parts…)` | quoted identifier | `ident("order", "desc")` → `"order"."desc"` |
-| `asterisk()` | `*` | |
-| `defaultValue()` | `DEFAULT` in `INSERT`/`UPDATE` | |
+| `Field<T>` | all | comparisons, `isNull`, `in`, `between`, `asc`/`desc`, `as`, `cast`, `coalesce`, `nullIf` |
+| `StringField` | text | `like`, `ilike`, `startsWith`, `endsWith`, `contains` (+ `…IgnoreCase`), `matches` (regex), `similarTo`, `concat`, `lower`, `upper`, `trim`, `length` |
+| `NumberField<N>` | numbers | `plus`, `minus`, `times`, `divide`, `mod`, `neg`, `abs` |
+| `TemporalField<T>` | date/time | `plus(Duration)`, `minus(Duration)`, `truncate(DatePart[, ZoneId])`, `extract(DatePart)` |
+| `JsonField<T>` | json, jsonb | `get(key)`, `getText(key)`, `path(..)`, `pathText(..)`, `contains`, `containsJson`, `hasKey`, `hasAnyKey`, `hasAllKeys`, `pathExists`, `pathMatch`, `deleteKey`, `concat` |
+| `ArrayField<E>` | arrays | `contains`, `containedBy`, `overlaps`, `hasElement`, `length`, `element(i)`, `append`, `remove` |
+| `Condition` | boolean | `and`, `or`, `not`, `isTrue`, `isFalse`, … |
 
-`inline` supports `null`, numbers, booleans, `LocalDate`, `LocalDateTime`,
-`LocalTime`, `OffsetDateTime`, `ZonedDateTime`, `UUID`, enums (by name) and
-text.
+Generated columns implement the matching interface (`USERS.EMAIL` is a
+`StringColumn`), and so do the results of functions (`lower(..)` is a
+`StringField`, `count()` a `NumberAggregate<Long>`).
+
+`startsWith`, `endsWith` and `contains` escape `%`, `_` and `\` in the text.
+`like(..)` takes a pattern as is.
+
+`TemporalField.plus(Duration)` keeps the column's type: `order_date + 7 days` stays a
+`date`. `truncate(DatePart.DAY)` of a `timestamptz` uses the session time zone; pass
+a `ZoneId` to make it explicit.
 
 ## Conditions
 
-Each condition is available as a static method (`eq(a, b)`). The most common
-ones are also fluent methods on every expression (`a.eq(b)`).
-
-### Comparison
-
-| Static | Fluent | SQL |
-|---|---|---|
-| `eq(a, b)` | `a.eq(b)` | `a = b` |
-| `ne(a, b)` | `a.ne(b)` | `a <> b` |
-| `gt / ge / lt / le` | `a.gt(b)` … | `>` `>=` `<` `<=` |
-| `isDistinctFrom(a, b)` | `a.isDistinctFrom(b)` | `a IS DISTINCT FROM b` (null-safe `<>`) |
-| `isNotDistinctFrom(a, b)` | `a.isNotDistinctFrom(b)` | null-safe `=` |
-| `compare(a, "op", b)` | | any operator, e.g. `<->` |
-
-A Java `null` as the right-hand operand is rejected with a clear message,
-because `x = NULL` is never true. Use `isNull(x)` instead, or `val(null)`
-if you really want a null parameter.
-
-### NULL and boolean tests
-
-`isNull(a)`, `isNotNull(a)`, `isTrue(a)`, `isNotTrue(a)`, `isFalse(a)`,
-`isNotFalse(a)`. The fluent forms are `a.isNull()` and `a.isNotNull()`.
-
-### Ranges and lists
-
-```java
-between(p.age, 18, 65)              // p.AGE BETWEEN :lq0 AND :lq1
-notBetween(p.age, 18, 65)
-betweenSymmetric(p.age, 65, 18)     // bounds in any order
-in(p.status, val("A"), val("B"))    // p.STATUS IN (:lq0, :lq1)
-in(p.personNr, idList)              // one parameter per element (Collection or array)
-in(p.personNr, subQuery)            // IN (SELECT ...)
-notIn(...)
-```
-
-An empty list renders `FALSE` for `in` and `TRUE` for `notIn`, so the
-statement stays valid. For very large lists, bind one array instead:
-`eq(p.personNr, any(val(ids.toArray(Long[]::new))))`.
-
-### Pattern matching
-
 | Method | SQL |
 |---|---|
-| `like(a, pattern)` / `notLike` | `LIKE` / `NOT LIKE` |
-| `ilike(a, pattern)` / `notIlike` | case-insensitive `LIKE` |
-| `similarTo(a, pattern)` / `notSimilarTo` | `SIMILAR TO` |
-| `matches(a, regex)` / `notMatches` | `~` / `!~` (POSIX regex) |
-| `matchesIgnoreCase(a, regex)` / `notMatchesIgnoreCase` | `~*` / `!~*` |
-| `startsWith(a, prefix)` | `starts_with(a, prefix)` |
+| `eq`, `ne`, `gt`, `ge`, `lt`, `le` (value or field) | `=`, `<>`, `>`, `>=`, `<`, `<=` |
+| `isNull()`, `isNotNull()` | `IS NULL`, `IS NOT NULL` |
+| `eqOrIsNull(value)` | `= ?`, or `IS NULL` for `null` |
+| `isDistinctFrom`, `isNotDistinctFrom` | null-safe comparisons |
+| `in(Collection)`, `notIn(Collection)` | `= ANY(?)`, `<> ALL(?)` with **one** array parameter |
+| `in(subquery)`, `notIn(subquery)` | `IN (SELECT …)` |
+| `eqAny(arrayField)` | `= ANY(array)` |
+| `between(a, b)`, `notBetween(a, b)` | `BETWEEN ? AND ?` |
+| `exists(select)`, `notExists(select)` | `EXISTS (…)` |
+| `a.and(b)`, `a.or(b)`, `a.not()` | `(a AND b)`, `(a OR b)`, `NOT (a)` |
+| `Condition.and(list)`, `Condition.or(list)` | `null` and `noCondition()` are skipped |
+| `Condition.noCondition()` | neutral: `TRUE` on its own, ignored by `and`/`or` |
+| `a.andIf(flag, () -> b)` | adds `b` only if `flag` is set |
 
-### Sub-queries and quantifiers
+`eq(null)` does not compile (it is ambiguous), and `eq((String) null)` throws. Use
+`isNull()`. `x = NULL` is never true in SQL.
 
-```java
-exists(select(inline(1)).from(o).where(eq(o.personNr, p.personNr)))
-notExists(...)
-eq(p.personNr, any(val(new Long[]{1L, 2L})))     // = ANY(array)
-gt(o.total, all(select(o.total).from(o)))         // > ALL(SELECT ...)
-```
+Boolean columns are conditions: `where(USERS.ACTIVE)`.
 
-### Arrays, JSONB, ranges and full-text search
+## Data types
 
-| Method | SQL | Works on |
+Every field has a `DataType<T>`: the SQL type, the Java type, and how values are
+bound and read. Result values are read with the declared type, so there is no
+reflection and no guessing from JDBC metadata.
+
+| `SqlTypes` | SQL | Java |
 |---|---|---|
-| `contains(a, b)` | `a @> b` | arrays, jsonb, ranges |
-| `containedBy(a, b)` | `a <@ b` | arrays, jsonb, ranges |
-| `overlaps(a, b)` | `a && b` | arrays, ranges |
-| `jsonHasKey(json, key)` | `jsonb_exists(json, key)` (the `?` operator) | jsonb |
-| `jsonHasAnyKey(json, keysArray)` | `jsonb_exists_any(..)` (`?\|`) | jsonb |
-| `jsonHasAllKeys(json, keysArray)` | `jsonb_exists_all(..)` (`?&`) | jsonb |
-| `jsonbPathExists(json, "$.path")` | `jsonb_path_exists(..)` | jsonb |
-| `jsonbPathMatch(json, "predicate")` | `jsonb_path_match(..)` | jsonb |
-| `tsMatches(vector, query)` | `vector @@ query` | full-text search |
-| `isEmpty(range)` | `isempty(range)` | ranges |
+| `TEXT`, `VARCHAR`, `CHAR`, `CITEXT` | text | `String` |
+| `INT2`, `INT4`, `INT8`, `NUMERIC`, `FLOAT4`, `FLOAT8` | numbers | `Short`, `Integer`, `Long`, `BigDecimal`, `Float`, `Double` |
+| `BOOL` | `boolean` | `Boolean` |
+| `UUID` | `uuid` | `UUID` |
+| `DATE`, `TIME`, `TIMESTAMP` | `date`, `time`, `timestamp` | `LocalDate`, `LocalTime`, `LocalDateTime` |
+| `TIMESTAMPTZ` / `TIMESTAMPTZ_OFFSET` | `timestamptz` | `Instant` / `OffsetDateTime` (UTC) |
+| `INTERVAL` / `INTERVAL_TEXT` | `interval` | `Duration` / text |
+| `JSONB`, `JSON` | `jsonb`, `json` | JSON text |
+| `jsonb(Class)`, `json(Class)` | `jsonb`, `json` | any class, via the context's `JsonCodec` |
+| `BYTEA` | `bytea` | `byte[]` |
+| `pgEnum(name, Enum.class[, label])` | enum type | a Java enum |
+| `pgEnumByName(name, Enum.class, labels…)` | enum type | an existing Java enum (labels matched ignoring case) |
+| `enumAsText(Enum.class)` | text | a Java enum stored by name |
+| `DATERANGE`, …, `TSVECTOR`, `otherAsText(name)` | other types | text form |
+| `T.array()` | `T[]` | Java array |
 
-The JSON key tests are rendered as functions because a literal `?` clashes
-with JDBC parameter markers. Note that the function form cannot use a GIN
-index. When you need the index, use `contains(json, jsonb(val("{\"key\": …}")))`,
-which renders the index-friendly `@>` operator.
+**Time zones.** No conversion uses the JVM's default time zone. A `timestamptz` is
+an `Instant`, sent with offset UTC. A `timestamp` is a `LocalDateTime`.
 
-### Combining conditions
-
-```java
-and(c1, c2, c3)                 // (c1 AND c2 AND c3), null entries skipped, empty → TRUE
-or(c1, c2)                      // (c1 OR c2), null entries skipped, empty → FALSE
-not(c)                          // NOT (c)
-group(c1, or(), c2)             // (c1 OR c2) – list style with explicit tokens
-c1.and(c2).or(c3)               // fluent: ((c1 AND c2) OR c3)
-c.not()
-condition("t.ACTIVE")           // SQL fragment as a condition
-condition(function("my_check", p.id))   // boolean function as a condition
-booleanFunction("my_check", p.id)       // shortcut for the line above
-trueCondition(), falseCondition()
-```
-
-Custom conditions can be written as lambdas:
+### Value objects and converters
 
 ```java
-Condition nearby = ctx -> ctx.append("ST_DWithin(").visit(s.location).append(", ")
-                            .visit(val(point)).append(", ").visit(inline(500)).append(")");
+public record UserId(UUID value) {}
+public static final DataType<UserId> USER_ID = SqlTypes.UUID.map(UserId.class, UserId::new, UserId::value);
+
+public static final DataType<Money> MONEY = SqlTypes.NUMERIC.convert(new Converter<Money, BigDecimal>() {
+    public Class<Money> javaType() { return Money.class; }
+    public Money fromDatabase(BigDecimal v) { return Money.of(v); }
+    public BigDecimal toDatabase(Money v) { return v.amount(); }
+});
 ```
 
-## Arithmetic and concatenation
+Mapped types work everywhere: as column types (through
+[forced types](code-generation.md#forced-types-value-objects-json-records)), as bind
+parameters, in results, in entities and in keyset cursors.
+
+`type.asSensitive()` marks a type whose values are shown as `***` in logs and error
+messages (passwords, tokens, personal data).
+
+## Parameters and literals
 
 ```java
-o.total.plus(10)        // (o.TOTAL + :lq0)
-o.total.minus(o.discount)
-o.price.times(o.quantity)
-o.total.divide(inline(100))
-p.age.mod(2)
-p.firstName.concat(inline(" ")).concat(p.lastName)   // (… || …)
-operator(a, "#", b)      // any binary operator
-prefix("-", a)           // unary operator
-parens(a)                // explicit parentheses
+param("text")                       // ? with type text; overloads for Integer, Long, BigDecimal, Instant, …
+param(value, SqlTypes.UUID)         // any type
+value(42L)                          // type derived from the class
+inline("constant")                  // an escaped literal in the SQL text: 'constant'
+inline(42)                          // 42
+inline(Role.ADMIN, ROLE_TYPE)       // 'ADMIN'::role
+nullValue(SqlTypes.TEXT)            // CAST(NULL AS text)
 ```
 
-Binary operators are always wrapped in parentheses, so nesting never changes
-precedence.
-
-## Aliases, casts and sorting
+## CASE and casts
 
 ```java
-upper(p.lastName).as("name")           // upper(p.LAST_NAME) AS name
-as("p.A + p.B", "total")               // alias for a SQL fragment or sub-query
-p.age.cast("text")                     // CAST(p.AGE AS text)
-cast(val(json), "jsonb")               // CAST(:lq0 AS jsonb)
-jsonb(val(json))                       // shortcut for the line above
-p.lastName.asc()   p.age.desc().nullsLast()
-asc(expr)   desc(expr).nullsFirst()
+caseWhen(USERS.ROLE.eq(Role.ADMIN), param("admin"))
+    .when(USERS.ACTIVE, "active")
+    .otherwise("inactive")
+
+caseOf(ORDERS.STATUS).when("N", inline("new")).when("P", "paid").otherwise(ORDERS.STATUS)
+
+USERS.VERSION.cast(SqlTypes.TEXT)     // CAST(app_user.version AS text), a StringField
 ```
 
-`cast` validates the type name, so it cannot be abused for SQL injection.
+## Raw SQL
 
-## CASE
+`ch.lxrin.ql.dsl.Sql` is the only place where SQL text enters a statement. Arguments
+of its templates (`{0}`, `{1}`, …) are fields and parameters, never strings, so user
+input cannot become SQL even here:
 
 ```java
-// searched CASE
-caseWhen(lt(p.age, 18), inline("minor"))
-    .when(lt(p.age, 65), inline("adult"))
-    .otherwise(inline("senior"))
-    .as("ageGroup")
-
-// simple CASE
-caseOf(o.status)
-    .when(inline("N"), inline("new"))
-    .when(inline("P"), inline("paid"))
-    .otherwise(o.status)
+Field<Double> score = Sql.raw("similarity({0}, {1})", SqlTypes.FLOAT8, USERS.NAME, param(text));
+Condition fts = Sql.condition("{0} @@ websearch_to_tsquery('simple', {1})", DOCS.TSV, param(q));
+AdHocTable legacy = Sql.table("legacy_import");                // a table that is not generated
+Column<String> code = legacy.field("code", SqlTypes.TEXT);
+ctx.execute(Sql.statement("REFRESH MATERIALIZED VIEW CONCURRENTLY report"));
 ```
 
-## Window specifications
-
-```java
-partitionBy(o.personNr).orderBy(o.createdAt.desc())     // (PARTITION BY ... ORDER BY ...)
-window().orderBy(o.createdAt).rowsBetween(unboundedPreceding(), currentRow())
-window().orderBy(o.createdAt).rangeBetween(preceding(7), currentRow())
-window().orderBy(o.createdAt).groupsBetween(preceding(1), following(1))
-WindowSpec.basedOn("w").orderBy(o.total)                   // (w ORDER BY ...)
-```
-
-Pass the specification to `.over(..)` on any aggregate or window function.
-`.over()` gives an empty window and `.over("name")` references a named window
-(see [Queries › Window functions](queries.md#window-functions)).
-
-## Custom functions and extensions
-
-Anything missing from the catalog can be called like this:
-
-```java
-function("similarity", p.lastName, val(text))          // pg_trgm
-function("ST_Distance", s.location, val(point))         // PostGIS
-function("my_schema.calc_price", o.id).as("price")
-function("my_agg", o.total).filter(...).over(...)       // the result supports all modifiers
-sql("{0} <-> {1}", p.lastName, val(text))               // operators with special syntax
-```
+Prefer a typed definition with [`Routines`](extension-points.md#custom-functions-and-operators)
+for functions and operators you use more than once. `LxrinArchRules.noRawSql()`
+from `lxrin-ql-test` finds every use of `Sql` and can forbid it outside chosen packages.

@@ -1,180 +1,135 @@
 # Getting started
 
-This guide takes you from an empty project to your first queries.
+This guide takes you from an empty project to the first queries.
 
 ## 1. Requirements
 
 - Java 17 or newer
-- Gradle 8+ or Maven 3.8+
-- A JDBC driver for your database. LxrinQL targets **PostgreSQL**. Portable
-  parts such as basic `SELECT`s, joins and standard functions also work on
-  other databases.
+- PostgreSQL 13 or newer
+- Gradle 8+ or Maven 3.6.3+
+- Docker at build time, so the code generator can start a disposable PostgreSQL
+  and apply your migrations (or an existing database, see
+  [Code generation](code-generation.md#the-database))
 
-## 2. Add the dependency
+## 2. Write the schema as migrations
 
-LxrinQL is published on Maven Central. Add it to your project:
+`src/main/resources/db/migration/V1__users.sql`:
 
-**Gradle (Kotlin DSL)**
+```sql
+CREATE TYPE app_role AS ENUM ('admin', 'user');
+
+CREATE TABLE app_user (
+    id         uuid PRIMARY KEY,
+    name       text        NOT NULL,
+    email      text        NOT NULL UNIQUE,
+    role       app_role    NOT NULL DEFAULT 'user',
+    created_at timestamptz NOT NULL DEFAULT now(),
+    deleted_at timestamptz,
+    version    bigint      NOT NULL DEFAULT 0
+);
+```
+
+## 3. Add the plugin
+
+**Gradle**
 
 ```kotlin
-repositories {
-    mavenCentral()
+plugins {
+    java
+    id("ch.lxrin.ql.codegen") version "3.0.0"
+}
+
+lxrinQl {
+    packageName = "com.example.db"
+    stripTablePrefixes.add("app_")
+    tableConstants.put("app_user", "USERS")
+    database {
+        flywayMigrations.from("src/main/resources/db/migration")
+    }
 }
 
 dependencies {
-    implementation("ch.lxrin:lxrin-ql:2.0.0")
-    runtimeOnly("org.postgresql:postgresql:42.7.10")
+    runtimeOnly("org.postgresql:postgresql:42.7.13")
 }
 ```
 
-**Maven**
+The plugin adds `ch.lxrin:lxrin-ql-core` to `implementation`. The task
+`generateLxrinQl` runs before `compileJava` and is up to date while the
+migrations and the configuration do not change.
 
-```xml
-<dependencies>
-    <dependency>
-        <groupId>ch.lxrin</groupId>
-        <artifactId>lxrin-ql</artifactId>
-        <version>2.0.0</version>
-    </dependency>
-    <dependency>
-        <groupId>org.postgresql</groupId>
-        <artifactId>postgresql</artifactId>
-        <version>42.7.10</version>
-        <scope>runtime</scope>
-    </dependency>
-</dependencies>
-```
+**Maven**: see [Code generation › Maven](code-generation.md#maven).
 
-## 3. Define your tables
+## 4. Look at the generated code
 
-Create one `TableDef` subclass per table. Columns are `public final Column`
-fields. Each column's Java alias is derived from its SQL name
-(`FIRST_NAME` → `firstName`), and that alias is later used to map results
-onto bean properties.
+For `app_user` the generator writes, in `build/generated/sources/lxrinql/main/java`:
 
-```java
-import ch.lxrin.ql.table.Column;
-import ch.lxrin.ql.table.TableDef;
+| Class | Purpose |
+|---|---|
+| `UserTable` with the constant `USERS` | typed columns (`USERS.EMAIL` is a `StringColumn`), primary key, unique key `UK_EMAIL`, foreign keys |
+| `UserRow` | an immutable record of one row, returned by `selectFrom(USERS)` |
+| `User` | a mutable entity with getters and setters that tracks its changes |
+| `UserRepositoryBase` | `save`, `saveAll`, `findById`, `findByEmail` (from the unique key), … |
+| `AppRole` | the Java enum of the PostgreSQL enum |
+| `Tables` | all table constants, for `import static com.example.db.Tables.*` |
 
-public class PersonTable extends TableDef {
-    public final Column personNr  = column("PERSON_NR");
-    public final Column firstName = column("FIRST_NAME");
-    public final Column lastName  = column("LAST_NAME");
-    public final Column email     = column("EMAIL");
-    public final Column status    = column("STATUS");
-    public final Column birthDate = column("BIRTH_DATE");
-    public final Column statusCd  = column("STATUS_CD", "statusCode"); // explicit Java alias
+It also creates `src/main/java/com/example/db/UserRepository.java` **once**. That
+class belongs to you: add your own queries there. Regeneration never overwrites it.
 
-    public PersonTable() { this("p"); }
-    public PersonTable(String alias) { super("PERSON", alias); }        // for self-joins
-}
-```
-
-For tables you only need once, create an ad-hoc definition:
+## 5. Create a QueryContext
 
 ```java
-Table a = table("ADDRESS", "a");
-select(a.col("CITY")).from(a).where(eq(a.col("ZIP"), val("8000")));
+QueryContext ctx = QueryContext.builder()
+        .dataSource(dataSource)          // e.g. HikariCP
+        .build();
+QueryContext.setDefault(ctx);            // used by the static DSL and BEANS
 ```
 
-## 4. Configure an executor
+With Spring Boot, add `ch.lxrin:lxrin-ql-spring` instead; it creates the context
+and joins `@Transactional`. See [Spring Boot](spring.md).
 
-Statements are rendered to SQL and handed to a `SqlExecutor`. The library
-ships with `JdbcSqlExecutor`:
+## 6. Write and read data
 
 ```java
-import ch.lxrin.ql.LxrinQL;
-import ch.lxrin.ql.exec.JdbcSqlExecutor;
+import static ch.lxrin.ql.dsl.Dsl.*;
+import static com.example.db.Tables.*;
 
-// once at startup – one pooled connection per statement, auto-commit
-LxrinQL.setDefaultExecutor(new JdbcSqlExecutor(dataSource));
+UserRepository users = BEANS.get(UserRepository.class);
+
+User ada = new User();
+ada.setId(users.createKey());            // time-ordered UUID v7
+ada.setName("Ada");
+ada.setEmail("ada@example.org");
+users.save(ada);                         // INSERT … RETURNING *: role, created_at and version are read back
+
+ada.setName("Ada Lovelace");
+users.save(ada);                         // UPDATE of the changed column only
+
+record UserSummary(UUID id, String name, String email) {}
+List<UserSummary> gmail = select(USERS.ID, USERS.NAME, USERS.EMAIL)
+        .from(USERS)
+        .where(USERS.EMAIL.endsWith("@gmail.com"), USERS.DELETED_AT.isNull())
+        .orderBy(USERS.NAME.asc())
+        .fetch(UserSummary::new);
+
+long admins = selectCount().from(USERS).where(USERS.ROLE.eq(AppRole.ADMIN)).fetchOne();
 ```
 
-To use a single connection (for example inside your own transaction), pass
-an executor to the statement:
-
-```java
-try (Connection con = dataSource.getConnection()) {
-    con.setAutoCommit(false);
-    SqlExecutor tx = JdbcSqlExecutor.forConnection(con);
-    insertInto(o).set(o.total, val(total)).executor(tx).execute();
-    update(s).set(s.stock, s.stock.minus(1)).where(eq(s.id, id)).executor(tx).execute();
-    con.commit();
-}
-```
-
-See [Execution & mapping](execution.md) for framework-managed transactions
-and custom executors.
-
-## 5. Write queries
-
-```java
-import static ch.lxrin.ql.LxrinQL.*;
-
-PersonTable p = new PersonTable();
-
-// rows as records (mapped by position)
-record PersonRow(long personNr, String lastName) {}
-List<PersonRow> rows = select(PersonRow.class, p.personNr, p.lastName)
-        .from(p)
-        .where(eq(p.status, val("ACTIVE")), ilike(p.lastName, val("A%")))
-        .orderBy(p.lastName)
-        .multiple();
-
-// a single value
-long count = createContribution(Long.class)
-        .select(count())
-        .from(p)
-        .where(eq(p.status, val("ACTIVE")))
-        .single();
-
-// raw rows
-List<Object[]> raw = select(p.personNr, upper(p.lastName)).from(p).multiple();
-
-// inspect the SQL without running it
-String sql = select(p.lastName).from(p).where(eq(p.status, val("A"))).buildSql();
-// SELECT p.LAST_NAME FROM PERSON p WHERE p.STATUS = :lq0
-```
-
-`createContribution(Type.class)`, `query(Type.class)` and
-`select(Type.class, items…)` all start a `SelectQuery<Type>`. To finish it:
+Terminal operations of a `SELECT`:
 
 | Method | Result |
 |---|---|
-| `.multiple()` | `List<T>` (never `null`) |
-| `.single()` | first row or `null` |
-| `.optional()` | first row as `Optional<T>` |
-| `.fetchCount()` | `SELECT count(*) FROM (query)` |
-| `.fetchExists()` | `SELECT EXISTS (query)` |
-
-## 6. Change data
-
-```java
-Long id = insertInto(p)
-        .set(p.firstName, val("Grace"))
-        .set(p.lastName, val("Hopper"))
-        .returning(p.personNr)
-        .single(Long.class);
-
-int changed = update(p)
-        .set(p.status, val("INACTIVE"))
-        .where(lt(p.birthDate, val(LocalDate.of(1900, 1, 1))))
-        .execute();
-
-deleteFrom(p).where(eq(p.personNr, id)).execute();
-```
+| `fetch()` | all rows: values for one field, `RowN` tuples for several, row records for `selectFrom` |
+| `fetch(Constructor::new)` | all rows mapped by a constructor reference (types checked by the compiler) |
+| `fetchOne()` | exactly one row, otherwise `NoRowsException` / `TooManyRowsException` |
+| `fetchOptional()` | zero or one row |
+| `fetchFirst()` | the first row with `LIMIT 1` |
+| `fetchCount()`, `fetchExists()` | `count(*)` of the query, `EXISTS (query)` |
+| `stream()` | a lazily read stream; must be closed |
+| `fetchPage()` | a keyset-paginated page with a cursor for the next one |
 
 ## Next steps
 
-- [Queries](queries.md): every clause of `SELECT`, `INSERT`, `UPDATE` and `DELETE`
-- [Expressions & conditions](expressions.md): how operands, conditions and expressions work
-- [Function reference](functions.md): the PostgreSQL function catalog
-- [Examples](examples.md): recipes for common tasks
-
-## Optional: IntelliJ live template `qlid`
-
-`live-templates/LxrinQL.xml` contains a live template that inserts a
-persisted, auto-incrementing `long` literal (`1000L`, `1001L`, …). This is
-useful for constant IDs such as code or enum tables. To install it, open
-**File → Manage IDE Settings → Import Settings** and select the file. Then
-type `qlid` and press Tab. The counter is stored in `~/.lxrin_ql_id_seq`.
+- [Queries](queries.md): everything the DSL can express
+- [Entities and repositories](entities-and-repositories.md)
+- [Extension points](extension-points.md): audit listeners, conventions, tenant isolation
+- [Migration from 2.x](migration-2-to-3.md)
