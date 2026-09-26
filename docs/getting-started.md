@@ -105,11 +105,26 @@ ada.setName("Ada Lovelace");
 users.save(ada);                         // UPDATE of the changed column only
 
 record UserSummary(UUID id, String name, String email) {}
+List<UserSummary> gmail = createContribution(UserSummary.class, USERS, (c, b) -> c
+        .select(USERS.ID, USERS.NAME, USERS.EMAIL)
+        .where(USERS.EMAIL.endsWith("@gmail.com"), USERS.DELETED_AT.isNull())
+        .orderBy(USERS.NAME.asc()))
+        .fetch();
+
+long admins = createContribution(Long.class, USERS, (c, b) -> c
+        .select(count())
+        .where(eq(USERS.ROLE, AppRole.ADMIN)))
+        .fetchOne();
+```
+
+The same queries in the fluent `select` style:
+
+```java
 List<UserSummary> gmail = select(USERS.ID, USERS.NAME, USERS.EMAIL)
         .from(USERS)
         .where(USERS.EMAIL.endsWith("@gmail.com"), USERS.DELETED_AT.isNull())
         .orderBy(USERS.NAME.asc())
-        .fetch(UserSummary::new);
+        .fetch(UserSummary::new);                // the constructor is checked by the compiler
 
 long admins = selectCount().from(USERS).where(USERS.ROLE.eq(AppRole.ADMIN)).fetchOne();
 ```
@@ -129,7 +144,8 @@ Terminal operations of a `SELECT`:
 
 ## Next steps
 
-- [Queries](queries.md): everything the DSL can express
+- [Queries](queries.md): everything the DSL can express, in both styles
+- [Conditions](conditions.md): every operator, optional filters, dynamic sorting
 - [Entities and repositories](entities-and-repositories.md)
 - [Extension points](extension-points.md): audit listeners, conventions, tenant isolation
 - [Migration from 2.x](migration-2-to-3.md)

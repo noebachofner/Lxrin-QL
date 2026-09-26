@@ -14,12 +14,88 @@ is identical. Every builder can be rendered without running it: `render()` retur
 the SQL with `?` placeholders and the typed binds, and `toString()` returns the same
 as text.
 
+- [Two styles](#two-styles): [createContribution](#the-createcontribution-style) · [select](#the-select-style)
 - [SELECT](#select): [select list](#select-list-and-results) · [FROM and joins](#from-and-joins) · [WHERE](#where)
   · [grouping](#group-by-and-having) · [windows](#window-functions) · [ordering and paging](#order-by-limit-and-offset)
   · [keyset pagination](#keyset-pagination) · [set operations](#set-operations) · [sub-queries](#sub-queries)
   · [CTEs](#common-table-expressions) · [derived tables and LATERAL](#derived-tables-lateral-and-set-returning-functions)
   · [locking](#row-locking)
 - [INSERT](#insert) · [upserts](#upserts) · [UPDATE](#update) · [DELETE](#delete) · [TRUNCATE](#truncate) · [RETURNING](#returning)
+
+---
+
+## Two styles
+
+LxrinQL has two ways to write a statement. Both share the same operators, type checks
+and pipeline (policies, conventions, listeners, observers), and they can be mixed
+freely. The `createContribution` style is a thin layer over the `select(..)` builders.
+
+### The createContribution style
+
+```java
+record UserSummary(UUID id, String name, String email) {}
+
+List<UserSummary> users = createContribution(UserSummary.class, USERS, (c, b) -> c
+        .select(USERS.ID, USERS.NAME, USERS.EMAIL)
+        .where(USERS.EMAIL.endsWith("@example.org"),
+               USERS.CREATED_AT.ge(b.setInstant(since)),
+               USERS.ROLE.in(b.setList(roles)))
+        .orderBy(USERS.NAME.asc()))
+    .fetch();
+
+createInsert(USERS, (c, b) -> c.set(USERS.ID, id).set(USERS.NAME, b.setString(name))).execute();
+createUpdate(USERS, (c, b) -> c.set(USERS.NAME, name).where(USERS.ID.eq(id))).execute();
+createDelete(SESSIONS, (c, b) -> c.where(SESSIONS.EXPIRES_AT.lt(b.setInstant(now)))).execute();
+createUpsert(USERS, (c, b) -> c.set(USERS.ID, id).set(USERS.NAME, name)).execute();   // ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name
+```
+
+- **`c` starts the statement.**
+  - In `createContribution`, `c.select(..)` (or `c.select(List<Field<?>>)`,
+    `c.selectDistinct(..)`, `c.selectAll()`) returns a normal `Select` with
+    `FROM table` already set. Joins, grouping, CTEs, paging and everything else
+    below work as usual.
+  - In `createInsert`, `createUpdate`, `createDelete` and `createUpsert`, `c` is the
+    `Insert`, `Update` or `Delete` builder itself.
+  - `c.all()` confirms an `UPDATE` or `DELETE` of every row.
+- **`b` creates explicit, typed bind parameters:**
+  - `setString`, `setInt`, `setLong`, `setShort`, `setBigDecimal`, `setDouble`,
+    `setFloat`, `setBoolean`, `setUuid`, `setInstant`, `setLocalDate`,
+    `setLocalDateTime`, `setLocalTime`, `setDuration`, `setBytes`;
+  - `set(value, type)` and `set(column, value)`;
+  - `setNull(type)`;
+  - `setList(..)` for `in(..)`.
+
+  `b` is optional. A plain value is bound automatically, and
+  `USERS.EMAIL.eq(email)` renders the same SQL as `USERS.EMAIL.eq(b.setString(email))`.
+  `b.setX(null)` throws; use `b.setNull(type)`.
+- **The result type** is one of:
+  - a record: components are matched to the selected fields by name (`created_at`
+    or an alias → `createdAt`), or by position when the names do not match;
+  - `Row`;
+  - a single column's type, e.g. `Long.class` for `c.select(count())`.
+
+  Types are checked when the query is built, not when rows arrive. A `null` for a
+  primitive component fails with a clear message.
+- **Without a table,** `createContribution(Type.class, (c, b) -> c.select(..).from(..))`
+  leaves `FROM` to you.
+- **On a context:** `ctx.createContribution(..)`, `ctx.createUpdate(..)`, … run on
+  that `QueryContext` instead of the default.
+
+### The select style
+
+The same query with the fluent builders and a constructor reference:
+
+```java
+List<UserSummary> users = select(USERS.ID, USERS.NAME, USERS.EMAIL)
+        .from(USERS)
+        .where(USERS.EMAIL.endsWith("@example.org"), ge(USERS.CREATED_AT, since), in(USERS.ROLE, roles))
+        .orderBy(USERS.NAME.asc())
+        .fetch(UserSummary::new);
+```
+
+Here the compiler checks the mapping itself: `fetch(UserSummary::new)` only compiles
+if the constructor takes `(UUID, String, String)`. The rest of this page uses this
+style, and everything applies equally inside `createContribution`.
 
 ---
 
@@ -74,6 +150,10 @@ UserTable manager = USERS.as("m");
 select(USERS.NAME, manager.NAME).from(USERS).join(manager).on(manager.ID.eq(USERS.MANAGER_ID))
 ```
 
+Joins that a filter needs only sometimes: `joinIf(flag, ORDERS, () -> ORDERS.USER_ID.eq(USERS.ID))`,
+`joinIf(flag, ORDERS, ORDERS.FK_USER)` and the same with `leftJoinIf`. The condition
+supplier is only called if the flag is set.
+
 ### WHERE
 
 Every `where(..)` argument and every further `where(..)` call is joined with `AND`:
@@ -84,8 +164,10 @@ Every `where(..)` argument and every further `where(..)` call is joined with `AN
 .whereIf(filter.name() != null, () -> USERS.NAME.containsIgnoreCase(filter.name()))
 ```
 
-Conditions are listed in [Fields and types](expressions.md#conditions).
-`Condition.noCondition()` is the neutral start value for conditions built in loops.
+`where(List<Condition>)` adds a list of conditions. All operators, their static
+forms (`eq(a, b)`, `in(x, list)`, …) and optional filters (`when`, `…IfPresent`,
+`Conditions.builder()`) are listed in [Conditions](conditions.md).
+`noCondition()` is the neutral start value for conditions built in loops.
 
 ### GROUP BY and HAVING
 
@@ -136,7 +218,13 @@ Frames: `rowsBetween`, `rangeBetween`, `groupsBetween`, `rows`, `range`, with
 .limit(param(pageSize))                           // bound
 .page(2, 25)                                      // LIMIT 25 OFFSET 50 (first page = 0)
 .orderBy(ORDERS.TOTAL.desc()).limitWithTies(3)    // FETCH FIRST 3 ROWS WITH TIES
+.orderBy(sortFields)                              // a List<SortField<?>>
+.orderBy(Sorts.from(request.sort(), SORTABLE))    // "name,desc" through a whitelist
 ```
+
+`Sorts.from(param, Map<String, Field<?>>)` accepts only the keys of the whitelist and
+the directions `asc` and `desc`. Anything else throws `InvalidSortException`; see
+[dynamic statements](conditions.md#dynamic-statements).
 
 ### Keyset pagination
 
@@ -303,8 +391,21 @@ update(ORDERS).set(ORDERS.STATUS, "VIP").from(USERS)       // UPDATE … FROM
     .execute();
 ```
 
-An `UPDATE` without `WHERE` is rejected; call `.allRows()` to update every row on
-purpose.
+An `UPDATE` without `WHERE` is rejected; call `.allRows()` (or `.all()`) to update
+every row on purpose. This also applies when every condition resolves to
+`noCondition()`, e.g. an empty `Conditions.builder()` or `eqIfPresent(Optional.empty())`.
+
+For PATCH requests, `setIf(flag, column, value)` and `setIfPresent(column, Optional)`
+set a column only if the flag is set or the value is present:
+
+```java
+update(USERS)
+    .setIfPresent(USERS.NAME, patch.name())
+    .setIfPresent(USERS.EMAIL, patch.email())
+    .setIf(patch.deactivate(), USERS.ACTIVE, false)
+    .where(USERS.ID.eq(id))
+    .execute();
+```
 
 ## DELETE
 
@@ -313,6 +414,9 @@ deleteFrom(SESSIONS).where(SESSIONS.EXPIRES_AT.lt(Instant.now())).execute();
 deleteFrom(ORDERS).using(USERS).where(ORDERS.USER_ID.eq(USERS.ID), USERS.DELETED_AT.isNotNull()).execute();
 deleteFrom(TMP).allRows().execute();                       // required without WHERE
 ```
+
+As with `UPDATE`, a `DELETE` whose conditions all resolve to `noCondition()` is
+rejected.
 
 With a [soft-delete policy](extension-points.md#table-policies), a `DELETE` becomes
 an `UPDATE … SET deleted_at = now`.

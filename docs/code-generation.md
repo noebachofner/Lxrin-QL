@@ -10,7 +10,7 @@ For every table (entity name `User` for the table `app_user` in these examples):
 
 | File | Content |
 |---|---|
-| `UserTable` | `public static final UserTable USERS`; one typed column per database column (`StringColumn`, `NumberColumn<Long>`, `TemporalColumn<Instant>`, `BooleanColumn`, `JsonColumn<String>`, `ArrayColumn<String>`, `Column<T>` for UUIDs, enums and value objects) with nullability, default, identity and generated flags; `PK` (with the key strategy), `UK_…` for unique constraints and unique indexes, `FK_…` for foreign keys; `as(alias)` for aliases; `mapRow(..)` |
+| `UserTable` | `public static final UserTable USERS`; one typed column per database column (`StringColumn`, `NumberColumn<Long>`, `TemporalColumn<Instant>`, `BooleanColumn`, `JsonColumn<String>`, `ArrayColumn<String>`, `RangeColumn`, `TsVectorColumn`, `Column<T>` for UUIDs, enums and value objects) with nullability, default, identity and generated flags; `PK` (with the key strategy), `UK_…` for unique constraints and unique indexes, `FK_…` for foreign keys; `as(alias)` for aliases; `mapRow(..)` |
 | `UserRow` | a record with one component per column |
 | `User` | an entity with a field, getter and setter per column (no setter for generated columns), `id()`, `toRow()`, `fromRow(..)` |
 | `UserKey` | a key record, for composite primary keys |
@@ -41,7 +41,9 @@ Columns, keys and enums keep the comments of the database as Javadoc.
 | enum types | generated enum (or a mapped existing enum) | `Column` |
 | arrays of any of these | `T[]` | `ArrayColumn` |
 | domains | their base type | |
-| ranges, `tsvector`, `tsquery`, `inet`, … | `String` (text form) | `Column` |
+| `daterange`, `tsrange`, `tstzrange`, `int4range`, `int8range`, `numrange` | `String` (text form) | `RangeColumn` (range operators) |
+| `tsvector` | `String` (text form) | `TsVectorColumn` (`tsMatches`) |
+| `tsquery`, `inet`, other types | `String` (text form) | `Column` |
 
 ### Key strategies
 

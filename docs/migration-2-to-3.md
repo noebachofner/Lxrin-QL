@@ -56,8 +56,8 @@ time, and you can migrate one class at a time.
 | `condition("…")`, `raw("…")`, `sql("{0} <-> {1}", …)` | `Sql.condition("…", args)`, `Sql.raw("…", type, args)`; or `Routines` |
 | `function("similarity", a, val(b))` | `Routines.function("similarity", …)` once, then `SIMILARITY.call(a, b)` |
 | `val(x)`, `inline(x)` | not needed; `param(x)` / `inline(x)` where a field is required |
-| `Binds`, `BindMap`, `.bind("name", v)`, `":name"` | removed: values are bound automatically |
-| `createContribution(Type.class).select(..)` / `query(Type.class)` | `select(..)` |
+| `Binds`, `BindMap`, `.bind("name", v)`, `":name"` | removed: values are bound automatically; since 3.1 `b.setString(v)`, `b.setList(..)`, … make a parameter explicit (optional) |
+| `createContribution(Type.class).select(..)` / `query(Type.class)` | since 3.1 `createContribution(Type.class, TABLE, (c, b) -> c.select(..).where(..)).fetch()`, or `select(..)` |
 | `select(PersonDto.class, p.id, p.name).multiple()` | `select(PERSON.ID, PERSON.NAME).from(PERSON).fetch(PersonDto::new)` |
 | bean mapping by alias (reflection) | constructor references (`fetch(Dto::new)`), `RowN` tuples, generated row records |
 | `.multiple()` | `.fetch()` |

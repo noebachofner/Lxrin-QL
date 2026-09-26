@@ -1,5 +1,83 @@
 # Changelog
 
+## 3.1.0
+
+Conditions: complete, composable and dynamic, plus the `createContribution` style.
+No breaking changes. Code written for 3.0 compiles and behaves the same.
+
+### Conditions
+
+- **Every operator in two forms:** a static function in the new class
+  `ch.lxrin.ql.dsl.Conditions` (inherited by `Dsl`, so `import static …Dsl.*`
+  covers it) and a field method, for example `eq(USERS.EMAIL, x)` and
+  `USERS.EMAIL.eq(x)`. See [docs/conditions.md](docs/conditions.md).
+- **New operators:**
+  - static comparisons: `eq`, `ne`, `gt`, `ge`, `lt`, `le`, `isDistinctFrom`,
+    `isNotDistinctFrom`;
+  - `betweenSymmetric` and `notBetweenSymmetric`, and field bounds for `notBetween`;
+  - varargs `in("a", "b")` and `notIn(..)`;
+  - `any(..)` and `all(..)` over sub-queries and arrays, with every comparison
+    (`gt(x, all(select(..)))`, `eq("vip", any(USERS.TAGS))`);
+  - `like`, `notLike`, `ilike` and `notIlike` with an `ESCAPE` character, and with
+    pattern fields;
+  - `notSimilarTo`, `notMatchesIgnoreCase`, `matches(Field)`;
+  - `arrayContains`, `arrayContainedBy` and `arrayOverlaps` (values or array fields);
+  - ranges: `RangeField`/`RangeColumn` with `rangeContains` (elements and ranges),
+    `rangeContainedBy`, `rangeOverlaps`, `strictlyLeftOf`, `strictlyRightOf`,
+    `notExtendsRightOf`, `notExtendsLeftOf`, `adjacentTo`, `isEmpty`;
+  - JSON: `jsonContains`, `jsonContainedBy`, `jsonPathExists`, `jsonPathMatches`,
+    and `contains`/`containedBy` with fields;
+  - `TsVectorField`/`TsVectorColumn` with `tsMatches`;
+  - row values: `row(a, b)` with comparisons and `IN`/`NOT IN` against value rows,
+    row expressions or sub-queries;
+  - logic: `and(List)` and `or(List)` as static functions.
+- **Optional filters:**
+  - `when(flag, () -> condition)` and `ifPresent(optional, fn)`;
+  - `eqIfPresent`, `neIfPresent`, `gtIfPresent`, `geIfPresent`, `ltIfPresent`,
+    `leIfPresent`, `inIfPresent`, `likeIfPresent`, `ilikeIfPresent`,
+    `startsWithIfPresent`, `containsIgnoreCaseIfPresent`;
+  - `Conditions.builder(..)` and `Conditions.orBuilder(..)` with `add`, `addIf`,
+    `addIfPresent`, `addAll` and `build()`.
+  - `null` values and `null` conditions in `where(..)` and in the builder are rejected,
+    never dropped. An empty `in` is always false, and an empty `notIn` always true.
+
+### Dynamic statements
+
+- `where(List<Condition>)`, `having(List<Condition>)` and `orderBy(List<SortField<?>>)`.
+- `Sorts.from(param, whitelist)` maps request parameters such as `"username,desc"`
+  onto a whitelist of fields and rejects everything else with the new
+  `InvalidSortException`.
+- `joinIf` and `leftJoinIf`, with a condition supplier or a foreign key.
+- `setIf(flag, column, value)` and `setIfPresent(column, Optional)` on `UPDATE` and
+  `INSERT` (for PATCH), and `Update.hasAssignments()`.
+- `all()` as an alias of `allRows()`. An `UPDATE` or `DELETE` whose conditions all
+  resolve to `noCondition()` is rejected unless all rows are confirmed (as in 3.0,
+  now tested explicitly).
+
+### The createContribution style
+
+- `createContribution(Type.class, TABLE, (c, b) -> c.select(..).where(..)).fetch()`,
+  plus `createInsert`, `createUpdate`, `createDelete` and `createUpsert`, both in
+  `Dsl` and on `QueryContext`.
+  - This is a thin layer over the existing builders. It shares their operators, type
+    checks and pipeline (policies, conventions, listeners, observers).
+  - Results map into records (by component name, or by position), `Row` or a single
+    column type. Types are checked when the query is built.
+  - `b` (`Binds`) creates explicit typed parameters: `setString`, `setInstant`,
+    `setList`, `setNull`, … It is optional, because values are bound automatically
+    anyway.
+  - `createUpsert` defaults to `ON CONFLICT (primary key) DO UPDATE SET` every other
+    column from `EXCLUDED`.
+- The README and the guides now use this style first; `select(..)`/`selectFrom(..)` is
+  documented as the alternative.
+
+### Code generation
+
+- `daterange`, `tsrange`, `tstzrange`, `int4range`, `int8range` and `numrange`
+  columns are generated as `RangeColumn`, and `tsvector` columns as
+  `TsVectorColumn`. Both are subclasses of `Column<String>`, so existing code still
+  compiles.
+
 ## 3.0.1
 
 A new, strongly typed API. Application code no longer contains SQL text: tables,

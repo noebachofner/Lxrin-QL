@@ -23,11 +23,29 @@ BEANS.get(UserRepository.class).saveAll(List.of(userA, userB, userC));   // one 
 List<User> admins = BEANS.get(UserRepository.class)
         .findAll(USERS.ROLE.eq(Role.ADMIN).and(USERS.DELETED_AT.isNull()));
 
+List<UserSummary> rows = createContribution(UserSummary.class, USERS, (c, b) -> c
+        .select(USERS.ID, USERS.NAME, USERS.EMAIL)
+        .where(USERS.EMAIL.endsWith("@gmail.com"),
+               USERS.CREATED_AT.ge(b.setInstant(since)),                 // b.setX(..) is optional: values are bound anyway
+               USERS.ROLE.in(b.setList(roles)),                          // one array parameter; empty list → no rows
+               when(name != null, () -> USERS.NAME.containsIgnoreCase(name)))
+        .orderBy(Sorts.from(sortParam, SORTABLE)))                       // "name,desc" through a whitelist
+        .fetch();                                                        // rows mapped into the record by name
+
+createUpdate(USERS, (c, b) -> c
+        .setIfPresent(USERS.NAME, patch.name())                          // PATCH: only what was sent
+        .where(USERS.ID.eq(id)))
+        .execute();                                                      // no WHERE → rejected unless c.all()
+```
+
+The same query in the fluent `select` style, with the mapping checked by the compiler:
+
+```java
 List<UserSummary> rows = select(USERS.ID, USERS.NAME, USERS.EMAIL)
         .from(USERS)
         .where(USERS.EMAIL.endsWith("@gmail.com"))
         .orderBy(USERS.NAME.asc())
-        .fetch(UserSummary::new);                                // typed tuple → your record, checked by the compiler
+        .fetch(UserSummary::new);
 ```
 
 `USERS.CREATED_AT.gt(Instant.now())` compiles. `USERS.CREATED_AT.eq("abc")` does
@@ -53,6 +71,14 @@ not, and neither does `USERS.EMAIL.plus(1)`.
   row records, entities with change tracking, repositories. Enums, arrays, JSON,
   identity and generated columns, views and composite keys are supported. Naming is
   configurable, and so are forced types for value objects.
+- **Complete, composable conditions.** Every operator both as a field method
+  (`USERS.EMAIL.eq(x)`) and as a static function (`eq(USERS.EMAIL, x)`): comparisons,
+  `BETWEEN [SYMMETRIC]`, `IN`/`ANY`/`ALL`/`EXISTS`, `LIKE … ESCAPE`, regular
+  expressions, arrays, ranges, JSON, full-text search and row values. Optional
+  filters through `when(..)`, `…IfPresent(Optional)` and `Conditions.builder()`;
+  `null` is never dropped silently.
+- **Two styles.** `createContribution(Type.class, TABLE, (c, b) -> c.select(..).where(..))`
+  and the fluent `select(..).from(..)`, sharing one implementation.
 - **A value is always a bind parameter.** Raw SQL is only possible through
   `Sql.raw(..)`, `Sql.condition(..)`, `Sql.table(..)` and `Sql.statement(..)`, and an
   ArchUnit rule can forbid it.
@@ -171,7 +197,8 @@ users.save(ada);                                        // UPDATE app_user SET n
 |---|---|
 | [Getting started](docs/getting-started.md) | Set-up with Gradle or Maven, the first generated code, the first queries |
 | [Code generation](docs/code-generation.md) | Gradle plugin, Maven plugin, CLI; naming, forced types, enums, what is generated |
-| [Queries](docs/queries.md) | `SELECT`, joins, grouping, windows, CTEs, set operations, locking, paging, `INSERT`/`UPDATE`/`DELETE`/upserts |
+| [Queries](docs/queries.md) | The `createContribution` and `select` styles; `SELECT`, joins, grouping, windows, CTEs, set operations, locking, paging, `INSERT`/`UPDATE`/`DELETE`/upserts |
+| [Conditions](docs/conditions.md) | Every operator (static and fluent), optional filters, dynamic sorting, joins and PATCH updates |
 | [Fields and types](docs/expressions.md) | Typed fields and conditions, data types and converters, bind parameters, literals, raw SQL |
 | [Function reference](docs/functions.md) | The typed PostgreSQL function catalog |
 | [Entities and repositories](docs/entities-and-repositories.md) | Change tracking, `save`, `saveAll`, keys, finders, optimistic locking, `BEANS` |
@@ -181,7 +208,7 @@ users.save(ada);                                        // UPDATE app_user SET n
 | [Testing](docs/testing.md) | SQL assertions, mock executor, `@LxrinPostgresTest`, architecture rules |
 | [Examples](docs/examples.md) | Recipes: search forms, paging, reports, upserts, job queues, JSON, full-text search |
 | [Migration from 2.x](docs/migration-2-to-3.md) | Step-by-step migration, side by side with 2.x |
-| [Design](docs/design/3.0.md) | The design of 3.0 and its decisions |
+| [Design](docs/design/3.0.md) | The design of 3.0 and its decisions; [3.1](docs/design/3.1.md): conditions and the `createContribution` style |
 | [Releasing](docs/releasing.md) | Publishing to Maven Central and the Gradle Plugin Portal |
 | [Changelog](CHANGELOG.md) | Release notes |
 
