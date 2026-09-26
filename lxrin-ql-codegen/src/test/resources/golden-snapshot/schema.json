@@ -1,0 +1,82 @@
+{
+  "format": 1,
+  "migrations": "sha256:0",
+  "enums": [
+    {"schema": "public", "name": "order_status", "labels": ["new", "in-progress", "done"]},
+    {"schema": "public", "name": "mood", "labels": ["happy", "sad"]}
+  ],
+  "tables": [
+    {
+      "schema": "public", "name": "app_users", "kind": "r", "comment": "People <who> sign in",
+      "columns": [
+        {"name": "id", "type": "uuid", "typeSchema": "pg_catalog", "typeKind": "b", "notNull": true, "hasDefault": false, "identity": "", "generated": ""},
+        {"name": "display_name", "type": "varchar", "typeSchema": "pg_catalog", "typeKind": "b", "notNull": true, "hasDefault": false, "identity": "", "generated": "", "comment": "Shown in the UI"},
+        {"name": "email", "type": "citext", "typeSchema": "pg_catalog", "typeKind": "b", "notNull": true, "hasDefault": false, "identity": "", "generated": ""},
+        {"name": "mood", "type": "mood", "typeSchema": "public", "typeKind": "e", "notNull": false, "hasDefault": false, "identity": "", "generated": ""},
+        {"name": "tags", "type": "_text", "typeSchema": "pg_catalog", "typeKind": "b", "elementType": "text", "elementKind": "b", "elementSchema": "pg_catalog", "notNull": true, "hasDefault": true, "identity": "", "generated": ""},
+        {"name": "class", "type": "text", "typeSchema": "pg_catalog", "typeKind": "b", "notNull": false, "hasDefault": false, "identity": "", "generated": ""},
+        {"name": "app_users", "type": "int4", "typeSchema": "pg_catalog", "typeKind": "b", "notNull": false, "hasDefault": false, "identity": "", "generated": ""},
+        {"name": "created_at", "type": "timestamptz", "typeSchema": "pg_catalog", "typeKind": "b", "notNull": true, "hasDefault": true, "identity": "", "generated": ""}
+      ],
+      "primaryKey": {"name": "app_users_pkey", "columns": ["id"]},
+      "uniqueKeys": [
+        {"name": "app_users_email_key", "columns": ["email"]}
+      ],
+      "foreignKeys": []
+    },
+    {
+      "schema": "sales", "name": "orders", "kind": "r",
+      "columns": [
+        {"name": "id", "type": "int8", "typeSchema": "pg_catalog", "typeKind": "b", "notNull": true, "hasDefault": true, "identity": "d", "generated": "", "sequence": "sales.orders_id_seq"},
+        {"name": "user_id", "type": "uuid", "typeSchema": "pg_catalog", "typeKind": "b", "notNull": true, "hasDefault": false, "identity": "", "generated": ""},
+        {"name": "total", "type": "numeric", "typeSchema": "pg_catalog", "typeKind": "b", "notNull": true, "hasDefault": false, "identity": "", "generated": ""},
+        {"name": "status", "type": "order_status", "typeSchema": "public", "typeKind": "e", "notNull": true, "hasDefault": true, "identity": "", "generated": ""},
+        {"name": "statuses", "type": "_order_status", "typeSchema": "public", "typeKind": "b", "elementType": "order_status", "elementKind": "e", "elementSchema": "public", "notNull": false, "hasDefault": false, "identity": "", "generated": ""},
+        {"name": "placed_on", "type": "date", "typeSchema": "pg_catalog", "typeKind": "b", "notNull": true, "hasDefault": false, "identity": "", "generated": ""},
+        {"name": "payload", "type": "jsonb", "typeSchema": "pg_catalog", "typeKind": "b", "notNull": false, "hasDefault": false, "identity": "", "generated": ""},
+        {"name": "ip", "type": "inet", "typeSchema": "pg_catalog", "typeKind": "b", "notNull": false, "hasDefault": false, "identity": "", "generated": ""},
+        {"name": "total_with_tax", "type": "numeric", "typeSchema": "pg_catalog", "typeKind": "b", "notNull": false, "hasDefault": true, "identity": "", "generated": "s"}
+      ],
+      "primaryKey": {"name": "orders_pkey", "columns": ["id"]},
+      "uniqueKeys": [],
+      "foreignKeys": [
+        {"name": "orders_user_id_fkey", "columns": ["user_id"], "referencedSchema": "public", "referencedTable": "app_users", "referencedColumns": ["id"]}
+      ]
+    },
+    {
+      "schema": "public", "name": "memberships", "kind": "r",
+      "columns": [
+        {"name": "user_id", "type": "uuid", "typeSchema": "pg_catalog", "typeKind": "b", "notNull": true, "hasDefault": false, "identity": "", "generated": ""},
+        {"name": "group_name", "type": "text", "typeSchema": "pg_catalog", "typeKind": "b", "notNull": true, "hasDefault": false, "identity": "", "generated": ""},
+        {"name": "since", "type": "date", "typeSchema": "pg_catalog", "typeKind": "b", "notNull": false, "hasDefault": false, "identity": "", "generated": ""}
+      ],
+      "primaryKey": {"name": "memberships_pkey", "columns": ["user_id", "group_name"]},
+      "uniqueKeys": [
+        {"name": "memberships_user_since_idx", "columns": ["user_id", "since"]}
+      ],
+      "foreignKeys": [
+        {"name": "memberships_user_id_fkey", "columns": ["user_id"], "referencedSchema": "public", "referencedTable": "app_users", "referencedColumns": ["id"]}
+      ]
+    },
+    {
+      "schema": "public", "name": "active_users", "kind": "v",
+      "columns": [
+        {"name": "id", "type": "uuid", "typeSchema": "pg_catalog", "typeKind": "b", "notNull": false, "hasDefault": false, "identity": "", "generated": ""},
+        {"name": "email", "type": "citext", "typeSchema": "pg_catalog", "typeKind": "b", "notNull": false, "hasDefault": false, "identity": "", "generated": ""}
+      ],
+      "primaryKey": null,
+      "uniqueKeys": [],
+      "foreignKeys": []
+    },
+    {
+      "schema": "public", "name": "event_log", "kind": "r",
+      "columns": [
+        {"name": "at", "type": "timestamptz", "typeSchema": "pg_catalog", "typeKind": "b", "notNull": true, "hasDefault": false, "identity": "", "generated": ""},
+        {"name": "message", "type": "text", "typeSchema": "pg_catalog", "typeKind": "b", "notNull": true, "hasDefault": false, "identity": "", "generated": ""}
+      ],
+      "primaryKey": null,
+      "uniqueKeys": [],
+      "foreignKeys": []
+    }
+  ]
+}

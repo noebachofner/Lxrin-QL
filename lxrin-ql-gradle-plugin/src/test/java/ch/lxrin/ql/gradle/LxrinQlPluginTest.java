@@ -14,6 +14,38 @@ import static org.junit.jupiter.api.Assertions.*;
 class LxrinQlPluginTest {
 
     @Test
+    void snapshotTasksShareTheDatabaseSettings() {
+        Project project = ProjectBuilder.builder().build();
+        project.getPluginManager().apply("java");
+        project.getPluginManager().apply("ch.lxrin.ql.codegen");
+        LxrinQlExtension ext = project.getExtensions().getByType(LxrinQlExtension.class);
+        ext.getPackageName().set("com.example.db");
+        ext.getExcludes().add("tmp_.*");
+        ext.getDatabase().getFlywayMigrations().from("src/main/resources/db/migration");
+
+        GenerateLxrinQlTask generate = (GenerateLxrinQlTask) project.getTasks().getByName(LxrinQlPlugin.TASK_NAME);
+        LxrinQlSnapshotTask snapshot = (LxrinQlSnapshotTask) project.getTasks().getByName(LxrinQlPlugin.SNAPSHOT_TASK_NAME);
+        LxrinQlCheckSnapshotTask check = (LxrinQlCheckSnapshotTask) project.getTasks().getByName(LxrinQlPlugin.CHECK_SNAPSHOT_TASK_NAME);
+        File expected = project.file("src/main/lxrinql/schema.json");
+        assertEquals("auto", generate.getSchemaSource().get());
+        assertEquals(expected, generate.getSnapshotFile().get().getAsFile());
+        assertEquals(expected, snapshot.getSnapshotFile().get().getAsFile());
+        assertEquals(expected, check.getSnapshotFile().get().getAsFile());
+        assertEquals(java.util.Set.of(expected), check.getSnapshotInput().getFiles());
+        for (AbstractLxrinQlTask t : java.util.List.of(generate, snapshot, check)) {
+            assertEquals(java.util.List.of("tmp_.*"), t.getExcludes().get());
+            assertEquals(java.util.Set.of(project.file("src/main/resources/db/migration")), t.getFlywayMigrations().getFiles());
+            assertEquals("postgres:17-alpine", t.getImage().get());
+        }
+        assertEquals("verification", check.getGroup());
+
+        ext.getSchemaSource().set("snapshot");
+        ext.getSnapshotFile().set(project.file("schema/lxrinql.json"));
+        assertEquals("snapshot", generate.getSchemaSource().get());
+        assertEquals(project.file("schema/lxrinql.json"), snapshot.getSnapshotFile().get().getAsFile());
+    }
+
+    @Test
     void javadocOptionsAreWired() {
         Project project = ProjectBuilder.builder().build();
         project.getPluginManager().apply("java");

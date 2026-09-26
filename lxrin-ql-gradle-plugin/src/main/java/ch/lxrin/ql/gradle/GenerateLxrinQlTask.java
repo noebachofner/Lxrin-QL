@@ -2,11 +2,11 @@ package ch.lxrin.ql.gradle;
 
 import ch.lxrin.ql.codegen.CodeGenerator;
 import ch.lxrin.ql.codegen.CodegenConfig;
-import ch.lxrin.ql.codegen.DatabaseProvisioner;
-import org.gradle.api.DefaultTask;
+import ch.lxrin.ql.codegen.SchemaSources;
 import org.gradle.api.GradleException;
 import org.gradle.api.file.ConfigurableFileCollection;
 import org.gradle.api.file.DirectoryProperty;
+import org.gradle.api.file.RegularFileProperty;
 import org.gradle.api.provider.ListProperty;
 import org.gradle.api.provider.MapProperty;
 import org.gradle.api.provider.Property;
@@ -20,38 +20,23 @@ import org.gradle.api.tasks.PathSensitive;
 import org.gradle.api.tasks.PathSensitivity;
 import org.gradle.api.tasks.TaskAction;
 
-import java.io.File;
 import java.nio.file.Path;
-import java.sql.Connection;
-import java.util.ArrayList;
-import java.util.List;
 
 /**
- * Generates the LxrinQL sources. Up to date (and cacheable) as long as the
- * migrations and the configuration do not change.
+ * Generates the LxrinQL sources from the database or from the schema snapshot
+ * ({@link #getSchemaSource()}). Up to date (and cacheable) as long as the migrations,
+ * the snapshot and the configuration do not change.
  */
 @CacheableTask
-public abstract class GenerateLxrinQlTask extends DefaultTask {
+public abstract class GenerateLxrinQlTask extends AbstractLxrinQlTask {
 
     /** The package of the generated code. */
     @Input
     public abstract Property<String> getPackageName();
 
-    /** Schemas to read. */
-    @Input
-    public abstract ListProperty<String> getSchemas();
 
-    /** Schema referenced without name. */
-    @Input
-    public abstract Property<String> getDefaultSchema();
 
-    /** Tables to include. */
-    @Input
-    public abstract ListProperty<String> getIncludes();
 
-    /** Tables to exclude. */
-    @Input
-    public abstract ListProperty<String> getExcludes();
 
     /** Prefixes to strip. */
     @Input
@@ -98,33 +83,24 @@ public abstract class GenerateLxrinQlTask extends DefaultTask {
     @Optional
     public abstract Property<Boolean> getStubJavadoc();
 
-    /** Docker image. */
+
+
+
+
+
+
+    /** {@code auto} (default), {@code database} or {@code snapshot}. */
     @Input
-    public abstract Property<String> getImage();
+    public abstract Property<String> getSchemaSource();
 
-    /** Flyway migrations. */
-    @InputFiles
-    @PathSensitive(PathSensitivity.RELATIVE)
-    public abstract ConfigurableFileCollection getFlywayMigrations();
-
-    /** SQL scripts. */
-    @InputFiles
-    @PathSensitive(PathSensitivity.RELATIVE)
-    public abstract ConfigurableFileCollection getSqlScripts();
-
-    /** Existing database URL. */
-    @Input
-    @Optional
-    public abstract Property<String> getJdbcUrl();
-
-    /** Existing database user. */
-    @Input
-    @Optional
-    public abstract Property<String> getUser();
-
-    /** Existing database password (not tracked as input). */
+    /** The schema snapshot used without Docker. */
     @Internal
-    public abstract Property<String> getPassword();
+    public abstract RegularFileProperty getSnapshotFile();
+
+    /** The snapshot file as an input; it may be missing. */
+    @InputFiles
+    @PathSensitive(PathSensitivity.RELATIVE)
+    public abstract ConfigurableFileCollection getSnapshotInput();
 
     /** Generated sources. */
     @OutputDirectory
@@ -141,10 +117,8 @@ public abstract class GenerateLxrinQlTask extends DefaultTask {
     /** Runs the generator. */
     @TaskAction
     public void generate() {
-        CodegenConfig config = new CodegenConfig()
+        CodegenConfig config = selection()
                 .packageName(getPackageName().get())
-                .schemas(getSchemas().get())
-                .defaultSchema(getDefaultSchema().get())
                 .singularize(getSingularize().get())
                 .generateEntities(getGenerateEntities().get())
                 .generateRepositories(getGenerateRepositories().get())
@@ -153,8 +127,6 @@ public abstract class GenerateLxrinQlTask extends DefaultTask {
                 .outputDirectory(getOutputDirectory().get().getAsFile().toPath())
                 .resourcesDirectory(getResourcesDirectory().get().getAsFile().toPath());
         if (getRepositoryStubs().isPresent()) config.repositoryStubDirectory(getRepositoryStubs().get().getAsFile().toPath());
-        getIncludes().get().forEach(config::include);
-        getExcludes().get().forEach(config::exclude);
         getStripTablePrefixes().get().forEach(config::stripTablePrefix);
         getEntityNames().get().forEach(config::entityName);
         getTableConstants().get().forEach(config::tableConstant);
@@ -165,25 +137,14 @@ public abstract class GenerateLxrinQlTask extends DefaultTask {
             if (p.length != 5) throw new GradleException("invalid forced type: " + spec);
             config.forcedType(new CodegenConfig.ForcedType(p[0], p[1], p[2], p[3], p[4]));
         }
-        try (DatabaseProvisioner db = provision(); Connection con = db.connect()) {
-            CodeGenerator.Result result = CodeGenerator.generate(con, config);
+        try {
+            Path snapshot = getSnapshotFile().isPresent() ? getSnapshotFile().get().getAsFile().toPath() : null;
+            CodeGenerator.Result result = new SchemaSources().generate(config, SchemaSources.Source.parse(getSchemaSource().get()),
+                    database(), snapshot, log());
             getLogger().lifecycle("LxrinQL: generated {} files, created {} repository stubs", result.generated().size(),
                     result.stubs().size());
         } catch (Exception e) {
             throw new GradleException("LxrinQL code generation failed: " + e.getMessage(), e);
         }
-    }
-
-    private DatabaseProvisioner provision() {
-        if (getJdbcUrl().isPresent()) {
-            return DatabaseProvisioner.jdbc(getJdbcUrl().get(), getUser().getOrNull(), getPassword().getOrNull());
-        }
-        return DatabaseProvisioner.testcontainer(getImage().get(), paths(getFlywayMigrations()), paths(getSqlScripts()));
-    }
-
-    private static List<Path> paths(ConfigurableFileCollection files) {
-        List<Path> result = new ArrayList<>();
-        for (File f : files.getFiles()) result.add(f.toPath());
-        return result;
     }
 }

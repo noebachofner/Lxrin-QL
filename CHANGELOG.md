@@ -59,6 +59,19 @@ createContribution(Pair.class, USERS, (c, b) -> c.select(USERS.ID.as("a"), USERS
   the 3.1 spec but missing. `c.select(col(USERS.USERNAME))`, `select(col(..))` and
   `returning(col(..))` compile and keep the column's type.
 
+### Code generation without Docker
+
+- `lxrinQlSnapshot` (Gradle), `lxrin-ql:snapshot` (Maven) and `--write-snapshot` (CLI)
+  write the schema model to a stable, diff-friendly JSON file that you commit (default
+  `src/main/lxrinql/schema.json`), together with a hash of the migrations.
+- `schemaSource = auto | database | snapshot`, default `auto`. `auto` uses the database
+  if a JDBC URL is set or Docker is available, and otherwise the snapshot, with a log
+  message saying which. If the migrations changed since the snapshot was written, you get
+  a warning.
+- `lxrinQlCheckSnapshot`, `lxrin-ql:check-snapshot` and `--check-snapshot` (exit status 1)
+  fail when the snapshot is out of date, for CI. With Docker they compare the complete
+  snapshot; without Docker they compare only the migrations hash.
+
 ### User column conventions
 
 - `ColumnConventions.createdBy(column, type, Supplier<T>)` sets the column on insert, and

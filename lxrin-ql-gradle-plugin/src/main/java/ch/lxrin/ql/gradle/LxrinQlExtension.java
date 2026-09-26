@@ -3,6 +3,7 @@ package ch.lxrin.ql.gradle;
 import org.gradle.api.Action;
 import org.gradle.api.file.ConfigurableFileCollection;
 import org.gradle.api.file.DirectoryProperty;
+import org.gradle.api.file.RegularFileProperty;
 import org.gradle.api.model.ObjectFactory;
 import org.gradle.api.provider.ListProperty;
 import org.gradle.api.provider.MapProperty;
@@ -41,6 +42,7 @@ public abstract class LxrinQlExtension {
         getGenerateRepositories().convention(true);
         getGenerateJavadoc().convention(true);
         getAddCoreDependency().convention(true);
+        getSchemaSource().convention("auto");
         database.getImage().convention("postgres:17-alpine");
     }
 
@@ -97,6 +99,19 @@ public abstract class LxrinQlExtension {
 
     /** Whether {@code ch.lxrin:lxrin-ql-core} of the plugin's version is added to {@code implementation} (default {@code true}). */
     public abstract Property<Boolean> getAddCoreDependency();
+
+    /**
+     * Where {@code generateLxrinQl} reads the schema from: {@code auto} (default: the database
+     * if a JDBC URL is set or Docker is available, otherwise the snapshot), {@code database}
+     * or {@code snapshot}.
+     */
+    public abstract Property<String> getSchemaSource();
+
+    /**
+     * The schema snapshot written by {@code lxrinQlSnapshot} and checked by
+     * {@code lxrinQlCheckSnapshot} (default {@code src/main/lxrinql/schema.json}).
+     */
+    public abstract RegularFileProperty getSnapshotFile();
 
     /** Returns the database settings. */
     @Nested

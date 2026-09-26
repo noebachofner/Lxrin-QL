@@ -4,7 +4,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.sql.Connection;
+import java.io.PrintStream;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -30,20 +30,51 @@ import java.util.Properties;
  * {@code migrations} and {@code scripts} (comma-separated directories),
  * {@code image}, or {@code jdbc-url}, {@code user} and {@code password} for an
  * existing database.</p>
+ *
+ * <p>Schema snapshots (code generation without Docker): {@code --write-snapshot file} reads
+ * the schema and writes the snapshot; {@code --check-snapshot file} exits with status 1 if
+ * the snapshot is out of date; {@code --snapshot file} with {@code --schema-source
+ * auto|database|snapshot} (default {@code auto}: the database if Docker is available or a
+ * JDBC URL is set, otherwise the snapshot) generates from it.</p>
  */
 public final class Main {
 
     private Main() {}
 
-    /** Runs the generator. */
+    /** Runs the generator; exits with status 1 if {@code --check-snapshot} finds the snapshot out of date. */
     public static void main(String[] args) throws Exception {
+        int status = run(args, new SchemaSources(), System.out, System.err);
+        if (status != 0) System.exit(status);
+    }
+
+    static int run(String[] args, SchemaSources sources, PrintStream out, PrintStream err) throws Exception {
         Properties options = parse(args);
-        CodegenConfig config = configure(options);
-        try (DatabaseProvisioner db = provision(options); Connection con = db.connect()) {
-            CodeGenerator.Result result = CodeGenerator.generate(con, config);
-            System.out.println("LxrinQL: generated " + result.generated().size() + " files, created " + result.stubs().size()
-                    + " repository stubs");
+        SchemaSources.Log log = new SchemaSources.Log() {
+            @Override
+            public void info(String message) {
+                out.println(message);
+            }
+
+            @Override
+            public void warn(String message) {
+                err.println(message);
+            }
+        };
+        SchemaSources.Database database = database(options);
+        if (options.containsKey("write-snapshot")) {
+            sources.writeSnapshot(selection(options), database, Path.of(options.getProperty("write-snapshot")), log);
+            return 0;
         }
+        if (options.containsKey("check-snapshot")) {
+            return sources.checkSnapshot(selection(options), database, Path.of(options.getProperty("check-snapshot")), log) ? 0 : 1;
+        }
+        CodegenConfig config = configure(options);
+        Path snapshot = options.containsKey("snapshot") ? Path.of(options.getProperty("snapshot")) : null;
+        CodeGenerator.Result result = sources.generate(config, SchemaSources.Source.parse(options.getProperty("schema-source")),
+                database, snapshot, log);
+        out.println("LxrinQL: generated " + result.generated().size() + " files, created " + result.stubs().size()
+                + " repository stubs");
+        return 0;
     }
 
     static Properties parse(String[] args) throws IOException {
@@ -66,16 +97,22 @@ public final class Main {
         return p;
     }
 
+    /** The settings that select the tables: schemas, default schema, excludes. */
+    static CodegenConfig selection(Properties p) {
+        CodegenConfig config = new CodegenConfig();
+        if (p.containsKey("schemas")) config.schemas(list(p.getProperty("schemas")));
+        if (p.containsKey("default-schema")) config.defaultSchema(p.getProperty("default-schema"));
+        if (p.containsKey("exclude")) config.exclude(list(p.getProperty("exclude")).toArray(new String[0]));
+        return config;
+    }
+
     static CodegenConfig configure(Properties p) {
-        CodegenConfig config = new CodegenConfig()
+        CodegenConfig config = selection(p)
                 .packageName(required(p, "package"))
                 .outputDirectory(Path.of(required(p, "output")));
         if (p.containsKey("resources")) config.resourcesDirectory(Path.of(p.getProperty("resources")));
         if (p.containsKey("stubs")) config.repositoryStubDirectory(Path.of(p.getProperty("stubs")));
-        if (p.containsKey("schemas")) config.schemas(list(p.getProperty("schemas")));
-        if (p.containsKey("default-schema")) config.defaultSchema(p.getProperty("default-schema"));
         if (p.containsKey("strip-prefixes")) config.stripTablePrefix(list(p.getProperty("strip-prefixes")).toArray(new String[0]));
-        if (p.containsKey("exclude")) config.exclude(list(p.getProperty("exclude")).toArray(new String[0]));
         if (p.containsKey("generate-javadoc")) config.generateJavadoc(bool(p, "generate-javadoc"));
         if (p.containsKey("stub-javadoc")) config.stubJavadoc(bool(p, "stub-javadoc"));
         if (p.containsKey("singularize")) config.singularize(Boolean.parseBoolean(p.getProperty("singularize")));
@@ -93,15 +130,13 @@ public final class Main {
         return config.validate();
     }
 
-    static DatabaseProvisioner provision(Properties p) {
-        if (p.containsKey("jdbc-url")) {
-            return DatabaseProvisioner.jdbc(p.getProperty("jdbc-url"), p.getProperty("user"), p.getProperty("password"));
-        }
+    static SchemaSources.Database database(Properties p) {
         List<Path> migrations = new ArrayList<>();
         for (String s : list(p.getProperty("migrations", ""))) migrations.add(Path.of(s));
         List<Path> scripts = new ArrayList<>();
         for (String s : list(p.getProperty("scripts", ""))) scripts.add(Path.of(s));
-        return DatabaseProvisioner.testcontainer(p.getProperty("image", "postgres:17-alpine"), migrations, scripts);
+        return new SchemaSources.Database(p.getProperty("image", "postgres:17-alpine"), migrations, scripts,
+                p.getProperty("jdbc-url"), p.getProperty("user"), p.getProperty("password"));
     }
 
     private static boolean bool(Properties p, String key) {
