@@ -240,7 +240,7 @@ Conditions.orBuilder(..)                          // joins with OR
 | Lists of conditions | `.where(List<Condition>)`, `.having(List<Condition>)` |
 | Dynamic sorting | `.orderBy(List<SortField<?>>)` |
 | Sort parameter from a request | `.orderBy(Sorts.from("username,desc", Map.of("username", USERS.NAME)))` |
-| Optional joins | `.joinIf(flag, ASSET, () -> ASSET.OWNER_ID.eq(USERS.ID))`, `.leftJoinIf(flag, ASSET, ASSET.FK_USER)` |
+| Optional joins | `.joinIf(flag, ASSET, () -> ASSET.OWNER_ID.eq(USERS.ID))`, `.leftJoinIf(flag, ASSET, ASSET.FK_OWNER_ID)` |
 | PATCH updates | `.setIf(flag, USERS.NAME, name)`, `.setIfPresent(USERS.EMAIL, Optional<String>)` |
 | All rows on purpose | `.allRows()` / `c.all()` |
 

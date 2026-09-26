@@ -21,6 +21,7 @@ class LxrinQlPluginTest {
         LxrinQlExtension ext = project.getExtensions().getByType(LxrinQlExtension.class);
         ext.getPackageName().set("com.example.db");
         ext.forcedType("t", "c", "uuid", "com.x.Id", "com.x.Types.ID");
+        ext.getForeignKeyNames().put("app_user_created_by_fkey", "FK_CREATOR");
         ((ProjectInternal) project).evaluate();
 
         GenerateLxrinQlTask task = (GenerateLxrinQlTask) project.getTasks().getByName(LxrinQlPlugin.TASK_NAME);
@@ -28,6 +29,7 @@ class LxrinQlPluginTest {
         assertEquals(java.util.List.of("public"), task.getSchemas().get());
         assertEquals("postgres:17-alpine", task.getImage().get());
         assertEquals(java.util.List.of("t|c|uuid|com.x.Id|com.x.Types.ID"), task.getForcedTypes().get());
+        assertEquals(java.util.Map.of("app_user_created_by_fkey", "FK_CREATOR"), task.getForeignKeyNames().get());
         assertTrue(task.getRepositoryStubs().get().getAsFile().getPath().endsWith("src" + File.separator + "main" + File.separator + "java"));
 
         SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);

@@ -23,6 +23,7 @@ import java.util.Properties;
  * {@code resources}, {@code stubs}, {@code schemas} (comma-separated),
  * {@code default-schema}, {@code strip-prefixes}, {@code exclude}, {@code singularize},
  * {@code table-constants} and {@code entity-names} ({@code table=NAME,...}),
+ * {@code foreign-key-names} ({@code constraint=FK_NAME,...}),
  * {@code enum-mappings} ({@code pg_enum=com.example.Enum,...}),
  * {@code forced-types} ({@code tableRegex|columnRegex|sqlTypeRegex|javaType|dataTypeExpression;...}),
  * {@code migrations} and {@code scripts} (comma-separated directories),
@@ -77,6 +78,7 @@ public final class Main {
         if (p.containsKey("singularize")) config.singularize(Boolean.parseBoolean(p.getProperty("singularize")));
         for (String[] pair : pairs(p.getProperty("table-constants"))) config.tableConstant(pair[0], pair[1]);
         for (String[] pair : pairs(p.getProperty("entity-names"))) config.entityName(pair[0], pair[1]);
+        for (String[] pair : pairs(p.getProperty("foreign-key-names"))) config.foreignKeyName(pair[0], pair[1]);
         for (String[] pair : pairs(p.getProperty("enum-mappings"))) config.enumMapping(pair[0], pair[1]);
         String forced = p.getProperty("forced-types", "");
         for (String spec : forced.split(";")) {

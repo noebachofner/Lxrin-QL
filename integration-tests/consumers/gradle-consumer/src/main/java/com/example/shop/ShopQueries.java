@@ -16,7 +16,7 @@ public final class ShopQueries {
     public static Select2<String, BigDecimal> bigSpenders(BigDecimal minimum) {
         return select(CUSTOMERS.NAME, sum(ORDERS.TOTAL))
                 .from(CUSTOMERS)
-                .join(ORDERS).onKey(ORDERS.FK_CUSTOMER)
+                .join(ORDERS).onKey(ORDERS.FK_CUSTOMER_ID)
                 .groupBy(CUSTOMERS.NAME)
                 .having(sum(ORDERS.TOTAL).gt(minimum));
     }

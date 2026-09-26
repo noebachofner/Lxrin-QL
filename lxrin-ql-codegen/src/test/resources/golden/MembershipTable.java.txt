@@ -35,7 +35,7 @@ public final class MembershipTable extends Table<MembershipRow> {
     /** The unique key {@code memberships_user_since_idx}. */
     public final UniqueKey UK_USER_ID_SINCE = uniqueKey("memberships_user_since_idx", USER_ID, SINCE);
     /** The foreign key {@code memberships_user_id_fkey} to {@code app_users}. */
-    public final ForeignKey FK_USER = foreignKey("memberships_user_id_fkey", List.of(USER_ID), null, "app_users", List.of("id"));
+    public final ForeignKey FK_USER_ID = foreignKey("memberships_user_id_fkey", List.of(USER_ID), null, "app_users", List.of("id"));
 
     /**
      * Creates the table with an alias.

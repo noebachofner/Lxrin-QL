@@ -69,6 +69,10 @@ public abstract class GenerateLxrinQlTask extends DefaultTask {
     @Input
     public abstract MapProperty<String, String> getTableConstants();
 
+    /** Foreign key constant overrides. */
+    @Input
+    public abstract MapProperty<String, String> getForeignKeyNames();
+
     /** Enum mappings. */
     @Input
     public abstract MapProperty<String, String> getEnumMappings();
@@ -143,6 +147,7 @@ public abstract class GenerateLxrinQlTask extends DefaultTask {
         getStripTablePrefixes().get().forEach(config::stripTablePrefix);
         getEntityNames().get().forEach(config::entityName);
         getTableConstants().get().forEach(config::tableConstant);
+        getForeignKeyNames().get().forEach(config::foreignKeyName);
         getEnumMappings().get().forEach(config::enumMapping);
         for (String spec : getForcedTypes().get()) {
             String[] p = spec.split("\\|");

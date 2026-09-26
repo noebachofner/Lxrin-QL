@@ -240,7 +240,7 @@ select(CUSTOMER.COUNTRY,
        count().filter(ORDERS.STATUS.eq("OPEN")),
        sum(ORDERS.TOTAL).filter(ORDERS.STATUS.eq("PAID")))
     .from(CUSTOMER)
-    .join(ORDERS).onKey(ORDERS.FK_CUSTOMER)
+    .join(ORDERS).onKey(ORDERS.FK_CUSTOMER_ID)
     .groupBy(CUSTOMER.COUNTRY)
     .fetch();
 ```

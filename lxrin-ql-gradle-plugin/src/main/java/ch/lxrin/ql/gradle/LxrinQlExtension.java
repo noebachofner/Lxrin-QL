@@ -70,6 +70,9 @@ public abstract class LxrinQlExtension {
     /** Table constant overrides: table → constant. */
     public abstract MapProperty<String, String> getTableConstants();
 
+    /** Foreign key constant overrides: constraint (or {@code table.constraint}) → constant. */
+    public abstract MapProperty<String, String> getForeignKeyNames();
+
     /** PostgreSQL enums mapped to existing Java enums: type → class. */
     public abstract MapProperty<String, String> getEnumMappings();
 

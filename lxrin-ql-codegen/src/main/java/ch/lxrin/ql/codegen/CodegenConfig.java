@@ -48,6 +48,7 @@ public final class CodegenConfig {
     private boolean singularize = true;
     private final Map<String, String> entityNames = new LinkedHashMap<>();
     private final Map<String, String> tableConstants = new LinkedHashMap<>();
+    private final Map<String, String> foreignKeyNames = new LinkedHashMap<>();
     private final List<ForcedType> forcedTypes = new ArrayList<>();
     private final Map<String, String> enumMappings = new LinkedHashMap<>();
     private Path outputDirectory;
@@ -111,6 +112,21 @@ public final class CodegenConfig {
     /** Overrides the constant name of a table, e.g. {@code tableConstant("app_user", "USERS")}. */
     public CodegenConfig tableConstant(String table, String constant) {
         tableConstants.put(table, constant);
+        return this;
+    }
+
+    /**
+     * Overrides the constant name of a foreign key, e.g.
+     * {@code foreignKeyName("app_user_created_by_fkey", "FK_CREATOR")}. The key is the
+     * constraint name, or {@code table.constraint} where constraint names repeat across tables.
+     * Without an override the constant is {@code FK_} followed by the key's columns.
+     */
+    public CodegenConfig foreignKeyName(String constraint, String constant) {
+        if (constraint == null || constraint.isBlank()) throw new IllegalArgumentException("constraint name must not be empty");
+        if (constant == null || !constant.matches("[A-Za-z_$][A-Za-z0-9_$]*")) {
+            throw new IllegalArgumentException("invalid constant name for foreign key " + constraint + ": " + constant);
+        }
+        foreignKeyNames.put(constraint, constant);
         return this;
     }
 
@@ -201,6 +217,15 @@ public final class CodegenConfig {
 
     Map<String, String> tableConstants() {
         return tableConstants;
+    }
+
+    Map<String, String> foreignKeyNames() {
+        return foreignKeyNames;
+    }
+
+    String foreignKeyConstant(String table, String constraint) {
+        String qualified = foreignKeyNames.get(table + "." + constraint);
+        return qualified != null ? qualified : foreignKeyNames.get(constraint);
     }
 
     List<ForcedType> forcedTypes() {

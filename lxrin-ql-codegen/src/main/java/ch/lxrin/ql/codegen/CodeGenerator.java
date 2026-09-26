@@ -227,8 +227,11 @@ public final class CodeGenerator {
             }
         }
         Set<String> keyNames = new HashSet<>();
+        Map<String, String> keyOwners = new HashMap<>();
+        if (t.primaryKey() != null && !t.view()) keyOwners.put("PK", "the primary key " + t.primaryKey().name());
         for (KeyModel uk : t.uniqueKeys()) {
             String name = uniqueName("UK_" + Names.upperSnake(String.join("_", uk.columns())), keyNames);
+            keyOwners.put(name, "the unique key " + uk.name());
             b.append("    /** The unique key {@code ").append(doc(uk.name())).append("}. */\n");
             b.append("    public final ").append(imp.use("ch.lxrin.ql.schema.UniqueKey")).append(' ').append(name).append(" = uniqueKey(\"")
                     .append(TypeMapping.escape(uk.name())).append('"');
@@ -236,9 +239,7 @@ public final class CodeGenerator {
             b.append(");\n");
         }
         for (ForeignKeyModel fk : t.foreignKeys()) {
-            String base = "FK_" + referencedConstant(fk);
-            String name = keyNames.contains(base) ? uniqueName("FK_" + Names.upperSnake(String.join("_", fk.columns())), keyNames)
-                    : uniqueName(base, keyNames);
+            String name = foreignKeyConstant(t, fk, cols, keyOwners);
             b.append("    /** The foreign key {@code ").append(doc(fk.name())).append("} to {@code ").append(doc(fk.referencedTable())).append("}. */\n");
             String list = imp.use("java.util.List");
             b.append("    public final ").append(imp.use("ch.lxrin.ql.schema.ForeignKey")).append(' ').append(name).append(" = foreignKey(\"")
@@ -295,13 +296,27 @@ public final class CodeGenerator {
         return sb.toString();
     }
 
-    private String referencedConstant(ForeignKeyModel fk) {
-        for (TableModel t : model.tables()) {
-            if (t.name().equals(fk.referencedTable()) && t.schema().equals(fk.referencedSchema())) {
-                return Names.upperSnake(entityNames.get(t));
+    /**
+     * Names a foreign key after its own columns ({@code FK_CREATED_BY}), or as configured in
+     * {@code foreignKeyNames}. The name never depends on other keys; a collision is an error.
+     */
+    private String foreignKeyConstant(TableModel t, ForeignKeyModel fk, List<Col> cols, Map<String, String> keyOwners) {
+        String name = config.foreignKeyConstant(t.name(), fk.name());
+        if (name == null) name = "FK_" + Names.upperSnake(String.join("_", fk.columns()));
+        String owner = "the foreign key " + fk.name();
+        for (Col c : cols) {
+            if (c.constant().equals(name)) {
+                throw new IllegalStateException(owner + " of table " + qualified(t) + " is named " + name
+                        + ", which is also the constant of column " + c.model().name() + "; configure foreignKeyNames(\""
+                        + fk.name() + "\", ..)");
             }
         }
-        return Names.upperSnake(Names.pascal(Names.singular(fk.referencedTable())));
+        String previous = keyOwners.putIfAbsent(name, owner);
+        if (previous != null) {
+            throw new IllegalStateException(previous + " and " + owner + " of table " + qualified(t) + " are both named " + name
+                    + "; configure foreignKeyNames(\"" + fk.name() + "\", ..) for one of them");
+        }
+        return name;
     }
 
     private static String uniqueName(String base, Set<String> used) {

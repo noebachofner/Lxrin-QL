@@ -29,12 +29,16 @@ class GenerateMojoTest {
         set(mojo, "schemas", List.of("public", "app"));
         set(mojo, "stripTablePrefixes", List.of("app_"));
         set(mojo, "tableConstants", Map.of("app_user", "USERS"));
+        set(mojo, "foreignKeyNames", Map.of("app_user_created_by_fkey", "FK_CREATOR"));
         ForcedType f = new ForcedType();
         f.columns = "id";
         f.javaType = "com.x.UserId";
         f.dataType = "com.x.Types.USER_ID";
         set(mojo, "forcedTypes", List.of(f));
         assertNotNull(mojo.config());
+        set(mojo, "foreignKeyNames", Map.of("app_user_created_by_fkey", "not valid"));
+        assertThrows(IllegalArgumentException.class, mojo::config);
+        set(mojo, "foreignKeyNames", null);
         set(mojo, "packageName", null);
         assertThrows(MojoExecutionException.class, mojo::config);
     }

@@ -1,7 +1,7 @@
 # Queries
 
 All examples assume these imports and the generated tables `USERS` (`app_user`)
-and `ORDERS` (`orders`, with the foreign key `FK_USER` to `app_user`):
+and `ORDERS` (`orders`, with the foreign key `FK_USER_ID` to `app_user`):
 
 ```java
 import static ch.lxrin.ql.dsl.Dsl.*;
@@ -136,7 +136,7 @@ row of each group; add a matching `ORDER BY`.
 select(USERS.NAME, ORDERS.TOTAL)
     .from(USERS)
     .join(ORDERS).on(ORDERS.USER_ID.eq(USERS.ID))           // JOIN … ON …
-    .leftJoin(ORDERS).onKey(ORDERS.FK_USER)                   // along a generated foreign key
+    .leftJoin(ORDERS).onKey(ORDERS.FK_USER_ID)                   // along a generated foreign key
     .rightJoin(t).on(..)  .fullJoin(t).on(..)
     .join(t).using(t.ID)                                      // JOIN t USING (id)
     .crossJoin(t)  .naturalJoin(t)
@@ -151,7 +151,7 @@ select(USERS.NAME, manager.NAME).from(USERS).join(manager).on(manager.ID.eq(USER
 ```
 
 Joins that a filter needs only sometimes: `joinIf(flag, ORDERS, () -> ORDERS.USER_ID.eq(USERS.ID))`,
-`joinIf(flag, ORDERS, ORDERS.FK_USER)` and the same with `leftJoinIf`. The condition
+`joinIf(flag, ORDERS, ORDERS.FK_USER_ID)` and the same with `leftJoinIf`. The condition
 supplier is only called if the flag is set.
 
 ### WHERE

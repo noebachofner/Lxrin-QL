@@ -39,6 +39,7 @@ public class LxrinQlPlugin implements Plugin<Project> {
             t.getSingularize().set(ext.getSingularize());
             t.getEntityNames().set(ext.getEntityNames());
             t.getTableConstants().set(ext.getTableConstants());
+            t.getForeignKeyNames().set(ext.getForeignKeyNames());
             t.getEnumMappings().set(ext.getEnumMappings());
             t.getForcedTypes().set(ext.getForcedTypes());
             t.getGenerateEntities().set(ext.getGenerateEntities());

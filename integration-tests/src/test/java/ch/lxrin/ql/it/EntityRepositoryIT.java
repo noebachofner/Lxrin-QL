@@ -238,7 +238,7 @@ class EntityRepositoryIT {
         assertEquals(15, risks.getById(new RiskKey(laptop.getId(), "theft")).getScore());
         assertThrows(UnsupportedOperationException.class, risks::createKey);
 
-        List<String> joined = ctx.select(ASSET.NAME, USERS.NAME).from(ASSET).join(USERS).onKey(ASSET.FK_USER).fetch(
+        List<String> joined = ctx.select(ASSET.NAME, USERS.NAME).from(ASSET).join(USERS).onKey(ASSET.FK_OWNER_ID).fetch(
                 (a, u) -> a + "/" + u);
         assertEquals(List.of("Laptop/Owner"), joined);
     }

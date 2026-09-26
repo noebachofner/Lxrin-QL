@@ -10,7 +10,7 @@ For every table (entity name `User` for the table `app_user` in these examples):
 
 | File | Content |
 |---|---|
-| `UserTable` | `public static final UserTable USERS`; one typed column per database column (`StringColumn`, `NumberColumn<Long>`, `TemporalColumn<Instant>`, `BooleanColumn`, `JsonColumn<String>`, `ArrayColumn<String>`, `RangeColumn`, `TsVectorColumn`, `Column<T>` for UUIDs, enums and value objects) with nullability, default, identity and generated flags; `PK` (with the key strategy), `UK_…` for unique constraints and unique indexes, `FK_…` for foreign keys; `as(alias)` for aliases; `mapRow(..)` |
+| `UserTable` | `public static final UserTable USERS`; one typed column per database column (`StringColumn`, `NumberColumn<Long>`, `TemporalColumn<Instant>`, `BooleanColumn`, `JsonColumn<String>`, `ArrayColumn<String>`, `RangeColumn`, `TsVectorColumn`, `Column<T>` for UUIDs, enums and value objects) with nullability, default, identity and generated flags; `PK` (with the key strategy), `UK_…` for unique constraints and unique indexes, `FK_<columns>` for foreign keys (named after the key's own columns, e.g. `FK_CREATED_BY` or `FK_ORDER_ID_LINE_NO`; see [Foreign key names](#foreign-key-names)); `as(alias)` for aliases; `mapRow(..)` |
 | `UserRow` | a record with one component per column |
 | `User` | an entity with a field, getter and setter per column (no setter for generated columns), `id()`, `toRow()`, `fromRow(..)` |
 | `UserKey` | a key record, for composite primary keys |
@@ -44,6 +44,22 @@ Columns, keys and enums keep the comments of the database as Javadoc.
 | `daterange`, `tsrange`, `tstzrange`, `int4range`, `int8range`, `numrange` | `String` (text form) | `RangeColumn` (range operators) |
 | `tsvector` | `String` (text form) | `TsVectorColumn` (`tsMatches`) |
 | `tsquery`, `inet`, other types | `String` (text form) | `Column` |
+
+### Foreign key names
+
+A foreign key constant is `FK_` followed by the key's own columns in upper snake case:
+
+| Foreign key | Constant |
+|---|---|
+| `app_user.created_by → app_user(id)` | `USERS.FK_CREATED_BY` |
+| `app_user.updated_by → app_user(id)` | `USERS.FK_UPDATED_BY` |
+| `order_line(order_id, line_no) → …` | `ORDER_LINE.FK_ORDER_ID_LINE_NO` |
+
+The name depends only on the key itself, so adding, removing or reordering other keys
+never renames a constant. Two keys on the same columns, or a key whose constant equals a
+column constant, stop the generator with an error that names both. Resolve it, or keep a
+name from 3.1, with `foreignKeyNames`: a map from the constraint name (or
+`table.constraint`) to the constant.
 
 ### Key strategies
 
@@ -99,7 +115,7 @@ lxrinQl {
 ```
 
 Give foreign key columns the same forced type as the columns they reference, so that
-joins such as `onKey(ASSET.FK_USER)` compare equal types.
+joins such as `onKey(ASSET.FK_OWNER_ID)` compare equal types.
 
 ## Gradle
 

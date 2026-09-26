@@ -61,6 +61,8 @@ public class GenerateMojo extends AbstractMojo {
     private Map<String, String> entityNames;
     /** Table constant overrides. */
     private Map<String, String> tableConstants;
+    /** Foreign key constant overrides. */
+    private Map<String, String> foreignKeyNames;
     /** Enum mappings. */
     private Map<String, String> enumMappings;
     /** Forced types. */
@@ -127,6 +129,7 @@ public class GenerateMojo extends AbstractMojo {
         if (stripTablePrefixes != null) stripTablePrefixes.forEach(config::stripTablePrefix);
         if (entityNames != null) entityNames.forEach(config::entityName);
         if (tableConstants != null) tableConstants.forEach(config::tableConstant);
+        if (foreignKeyNames != null) foreignKeyNames.forEach(config::foreignKeyName);
         if (enumMappings != null) enumMappings.forEach(config::enumMapping);
         if (forcedTypes != null) {
             for (ForcedType f : forcedTypes) {

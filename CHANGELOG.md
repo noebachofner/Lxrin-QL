@@ -1,5 +1,49 @@
 # Changelog
 
+## 3.2.0
+
+Fixes and features from integrating 3.0 and 3.1 into a Spring Boot 4 project. Two changes
+are incompatible, and the [migration notes](docs/migration-2-to-3.md#from-31-to-32) cover
+both: the names of generated foreign key constants and record mapping by position.
+Everything else is additive. See the [3.2 design notes](docs/design/3.2.md).
+
+### Breaking: stable foreign key constant names
+
+A foreign key constant is now named after the key's own columns. In 3.1, the first key of a
+table was named after the referenced table and only later keys after their columns, so the
+name depended on the order in which PostgreSQL returned the keys. Adding a key could rename
+an existing constant and silently change what `onKey(..)` joined on.
+
+| Table and key | 3.1 | 3.2 |
+|---|---|---|
+| `app_user.created_by → app_user(id)` | `USERS.FK_USER` | `USERS.FK_CREATED_BY` |
+| `app_user.updated_by → app_user(id)` | `USERS.FK_UPDATED_BY` | `USERS.FK_UPDATED_BY` |
+| `orders.user_id → app_user(id)` | `ORDERS.FK_USER` | `ORDERS.FK_USER_ID` |
+| `asset.owner_id → app_user(id)` | `ASSET.FK_USER` | `ASSET.FK_OWNER_ID` |
+| `line(order_id, line_no) → order_line(..)` | `LINE.FK_ORDER_LINE` | `LINE.FK_ORDER_ID_LINE_NO` |
+
+```java
+// 3.1
+select(ORDERS.TOTAL).from(ORDERS).join(USERS).onKey(ORDERS.FK_USER)
+// 3.2
+select(ORDERS.TOTAL).from(ORDERS).join(USERS).onKey(ORDERS.FK_USER_ID)
+```
+
+- A name no longer depends on the order or the number of the other keys.
+- If two keys would get the same constant (two keys on the same columns), or a key would get
+  the constant of a column, code generation fails with an error that names both. It no
+  longer numbers them silently.
+- The new option `foreignKeyNames` (constraint name, or `table.constraint`, → constant) keeps
+  an old name or resolves a collision. It is available in `CodegenConfig.foreignKeyName(..)`,
+  the Gradle plugin, the Maven plugin (`<foreignKeyNames>`) and the CLI
+  (`--foreign-key-names`):
+
+  ```kotlin
+  lxrinQl {
+      foreignKeyNames.put("orders_user_id_fkey", "FK_USER")
+  }
+  ```
+
 ## 3.1.0
 
 Conditions: complete, composable and dynamic, plus the `createContribution` style.

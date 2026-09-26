@@ -120,6 +120,13 @@
           <description>Table constant overrides: table to constant.</description>
         </parameter>
         <parameter>
+          <name>foreignKeyNames</name>
+          <type>java.util.Map</type>
+          <required>false</required>
+          <editable>true</editable>
+          <description>Foreign key constant overrides: constraint (or table.constraint) to constant.</description>
+        </parameter>
+        <parameter>
           <name>enumMappings</name>
           <type>java.util.Map</type>
           <required>false</required>
@@ -211,6 +218,7 @@
         <singularize implementation="boolean" default-value="true"/>
         <entityNames implementation="java.util.Map"/>
         <tableConstants implementation="java.util.Map"/>
+        <foreignKeyNames implementation="java.util.Map"/>
         <enumMappings implementation="java.util.Map"/>
         <forcedTypes implementation="java.util.List"/>
         <generateEntities implementation="boolean" default-value="true"/>

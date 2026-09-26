@@ -86,7 +86,7 @@ carry the failing SQL, the bind values (sensitive values redacted) and the SQLST
 | Exception | When |
 |---|---|
 | `UniqueViolationException` | 23505; `constraint()` returns the generated key, e.g. `USERS.UK_EMAIL` |
-| `ForeignKeyViolationException` | 23503; `isViolated(ORDERS.FK_USER)` |
+| `ForeignKeyViolationException` | 23503; `isViolated(ORDERS.FK_USER_ID)` |
 | `NotNullViolationException`, `CheckViolationException`, `ExclusionViolationException` | 23502, 23514, 23P01 |
 | `SerializationFailureException`, `DeadlockException` | 40001, 40P01 (both `TransientDataAccessException`: retry) |
 | `LockNotAvailableException`, `QueryTimeoutException` | 55P03 (`NOWAIT`, `lock_timeout`), 57014 |

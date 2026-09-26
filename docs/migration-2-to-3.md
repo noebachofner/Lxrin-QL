@@ -64,7 +64,7 @@ time, and you can migrate one class at a time.
 | `.single()` (first row or `null`) | `.fetchOne()` (exactly one), `.fetchOptional()`, `.fetchFirst()` |
 | `.optional()` | `.fetchOptional()` |
 | `RowMapper` over `Object[]` | `fetch(Function)` on typed rows |
-| `.join(o, eq(o.personNr, p.personNr))` | `.join(ORDERS).on(ORDERS.PERSON_NR.eq(PERSON.PERSON_NR))` or `.onKey(ORDERS.FK_PERSON)` |
+| `.join(o, eq(o.personNr, p.personNr))` | `.join(ORDERS).on(ORDERS.PERSON_NR.eq(PERSON.PERSON_NR))` or `.onKey(ORDERS.FK_PERSON_NR)` |
 | `.join("LEFT JOIN a ON …")` | `.leftJoin(ADDRESS).on(..)` |
 | `.with("r", query)` + `"r.total"` | `Cte r = cte("r", query)` + `r.field(total)` |
 | `window().rowsBetween(unboundedPreceding(), currentRow())` (strings) | the same, with typed `FrameBound`s |
