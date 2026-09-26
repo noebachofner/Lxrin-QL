@@ -5,6 +5,7 @@ import ch.lxrin.ql.schema.Column;
 import ch.lxrin.ql.schema.Table;
 
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * An {@code INSERT} built column by column:
@@ -32,6 +33,17 @@ public final class Insert<R> extends InsertColumns<R> {
     /** Sets a column to an expression in the current row. */
     public <T> Insert<R> set(Column<T> column, Field<T> value) {
         return setField(column, value);
+    }
+
+    /** Sets a column value only if {@code apply} is {@code true}; otherwise the column gets its default. */
+    public <T> Insert<R> setIf(boolean apply, Column<T> column, T value) {
+        return apply ? set(column, value) : this;
+    }
+
+    /** Sets a column value if it is present; otherwise the column gets its default. */
+    public <T> Insert<R> setIfPresent(Column<T> column, Optional<? extends T> value) {
+        if (value == null) throw new IllegalArgumentException("optional must not be null");
+        return value.isPresent() ? set(column, (T) value.get()) : this;
     }
 
     private <T> Insert<R> setField(Column<T> column, Field<T> value) {
