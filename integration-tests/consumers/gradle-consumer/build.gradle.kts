@@ -1,6 +1,6 @@
 plugins {
     java
-    id("ch.lxrin.ql.codegen") version "3.0.1"
+    id("ch.lxrin.ql.codegen") version "3.1.0"
 }
 
 java {

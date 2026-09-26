@@ -21,6 +21,53 @@ public interface StringField extends Field<String> {
     /** {@code this NOT ILIKE ?} */
     default Condition notIlike(String pattern) { return Ops.compare(this, "NOT ILIKE", Ops.value(this, pattern, "notIlike")); }
 
+    /** {@code this LIKE pattern} with a pattern expression. */
+    default Condition like(Field<String> pattern) { return Ops.compare(this, "LIKE", Ops.field(pattern)); }
+
+    /** {@code this NOT LIKE pattern} */
+    default Condition notLike(Field<String> pattern) { return Ops.compare(this, "NOT LIKE", Ops.field(pattern)); }
+
+    /** {@code this ILIKE pattern} */
+    default Condition ilike(Field<String> pattern) { return Ops.compare(this, "ILIKE", Ops.field(pattern)); }
+
+    /** {@code this NOT ILIKE pattern} */
+    default Condition notIlike(Field<String> pattern) { return Ops.compare(this, "NOT ILIKE", Ops.field(pattern)); }
+
+    /** {@code this ~ regex} with a regex expression. */
+    default Condition matches(Field<String> regex) { return Ops.compare(this, "~", Ops.field(regex)); }
+
+    /** {@code this LIKE ? ESCAPE 'c'} with a custom escape character. */
+    default Condition like(String pattern, char escape) { return Ops.likeEscape(this, "LIKE", pattern, escape); }
+
+    /** {@code this NOT LIKE ? ESCAPE 'c'} */
+    default Condition notLike(String pattern, char escape) { return Ops.likeEscape(this, "NOT LIKE", pattern, escape); }
+
+    /** {@code this ILIKE ? ESCAPE 'c'} */
+    default Condition ilike(String pattern, char escape) { return Ops.likeEscape(this, "ILIKE", pattern, escape); }
+
+    /** {@code this NOT ILIKE ? ESCAPE 'c'} */
+    default Condition notIlike(String pattern, char escape) { return Ops.likeEscape(this, "NOT ILIKE", pattern, escape); }
+
+    /** {@code this NOT SIMILAR TO ?} */
+    default Condition notSimilarTo(String pattern) { return Ops.compare(this, "NOT SIMILAR TO", Ops.value(this, pattern, "notSimilarTo")); }
+
+    /** {@code this !~* ?} – does not match, case-insensitive. */
+    default Condition notMatchesIgnoreCase(String regex) { return Ops.compare(this, "!~*", Ops.value(this, regex, "notMatchesIgnoreCase")); }
+
+    /** {@code this LIKE ?} if a pattern is present, else no condition. */
+    default Condition likeIfPresent(java.util.Optional<String> pattern) { return pattern.map(this::like).orElse(Condition.noCondition()); }
+
+    /** {@code this ILIKE ?} if a pattern is present, else no condition. */
+    default Condition ilikeIfPresent(java.util.Optional<String> pattern) { return pattern.map(this::ilike).orElse(Condition.noCondition()); }
+
+    /** {@link #startsWith} if a prefix is present, else no condition. */
+    default Condition startsWithIfPresent(java.util.Optional<String> prefix) { return prefix.map(this::startsWith).orElse(Condition.noCondition()); }
+
+    /** {@link #containsIgnoreCase} if a text is present, else no condition. */
+    default Condition containsIgnoreCaseIfPresent(java.util.Optional<String> text) {
+        return text.map(this::containsIgnoreCase).orElse(Condition.noCondition());
+    }
+
     /** {@code this LIKE 'prefix%'} with the prefix escaped. */
     default Condition startsWith(String prefix) { return like(Ops.escapeLike(prefix, "startsWith") + "%"); }
 

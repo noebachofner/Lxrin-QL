@@ -53,14 +53,14 @@ final class TypeMapping {
         base("json", "java.lang.String", "JSON", "json");
         base("jsonb", "java.lang.String", "JSONB", "json");
         base("bytea", "byte[]", "BYTEA", "other");
-        base("tsvector", "java.lang.String", "TSVECTOR", "other");
+        base("tsvector", "java.lang.String", "TSVECTOR", "tsvector");
         base("tsquery", "java.lang.String", "TSQUERY", "other");
-        base("daterange", "java.lang.String", "DATERANGE", "other");
-        base("tsrange", "java.lang.String", "TSRANGE", "other");
-        base("tstzrange", "java.lang.String", "TSTZRANGE", "other");
-        base("int4range", "java.lang.String", "INT4RANGE", "other");
-        base("int8range", "java.lang.String", "INT8RANGE", "other");
-        base("numrange", "java.lang.String", "NUMRANGE", "other");
+        base("daterange", "java.lang.String", "DATERANGE", "range");
+        base("tsrange", "java.lang.String", "TSRANGE", "range");
+        base("tstzrange", "java.lang.String", "TSTZRANGE", "range");
+        base("int4range", "java.lang.String", "INT4RANGE", "range");
+        base("int8range", "java.lang.String", "INT8RANGE", "range");
+        base("numrange", "java.lang.String", "NUMRANGE", "range");
     }
 
     private static void base(String sql, String java, String constant, String kind) {
@@ -143,6 +143,10 @@ final class TypeMapping {
                 return new Mapped(b.javaType(), dataType, "booleanColumn", SCHEMA + "BooleanColumn", null);
             case "temporal":
                 return new Mapped(b.javaType(), dataType, "temporalColumn", SCHEMA + "TemporalColumn", b.javaType());
+            case "range":
+                return new Mapped(b.javaType(), dataType, "rangeColumn", SCHEMA + "RangeColumn", null);
+            case "tsvector":
+                return new Mapped(b.javaType(), dataType, "tsvectorColumn", SCHEMA + "TsVectorColumn", null);
             case "json":
                 return new Mapped(b.javaType(), dataType, "jsonColumn", SCHEMA + "JsonColumn", b.javaType());
             default:

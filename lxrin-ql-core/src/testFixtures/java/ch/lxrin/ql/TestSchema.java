@@ -9,9 +9,11 @@ import ch.lxrin.ql.schema.JsonColumn;
 import ch.lxrin.ql.schema.KeyStrategy;
 import ch.lxrin.ql.schema.NumberColumn;
 import ch.lxrin.ql.schema.PrimaryKey;
+import ch.lxrin.ql.schema.RangeColumn;
 import ch.lxrin.ql.schema.StringColumn;
 import ch.lxrin.ql.schema.Table;
 import ch.lxrin.ql.schema.TemporalColumn;
+import ch.lxrin.ql.schema.TsVectorColumn;
 import ch.lxrin.ql.schema.UniqueKey;
 import ch.lxrin.ql.types.DataType;
 import ch.lxrin.ql.types.SqlTypes;
@@ -93,6 +95,33 @@ public final class TestSchema {
         @Override
         public OrderRow mapRow(Row r) {
             return new OrderRow(r.get(ID), r.get(USER_ID), r.get(TOTAL), r.get(STATUS), r.get(ORDERED_ON));
+        }
+    }
+
+    public record BookingRow(Long id, String period, String search, Integer[] slots) {}
+
+    public static final class BookingsTable extends Table<BookingRow> {
+        public static final BookingsTable BOOKINGS = new BookingsTable(null);
+
+        public final NumberColumn<Long> ID = numberColumn("id", SqlTypes.INT8, Column.NOT_NULL | Column.PRIMARY_KEY);
+        public final RangeColumn PERIOD = rangeColumn("period", SqlTypes.TSTZRANGE, Column.NOT_NULL);
+        public final TsVectorColumn SEARCH = tsvectorColumn("search", SqlTypes.TSVECTOR, 0);
+        public final ArrayColumn<Integer> SLOTS = arrayColumn("slots", SqlTypes.INT4.array(), 0);
+
+        public final PrimaryKey<Long> PK = primaryKey("bookings_pkey", ID, KeyStrategy.none());
+
+        public BookingsTable(String alias) {
+            super(null, "bookings", alias);
+        }
+
+        @Override
+        public BookingsTable as(String alias) {
+            return new BookingsTable(alias);
+        }
+
+        @Override
+        public BookingRow mapRow(Row r) {
+            return new BookingRow(r.get(ID), r.get(PERIOD), r.get(SEARCH), r.get(SLOTS));
         }
     }
 }

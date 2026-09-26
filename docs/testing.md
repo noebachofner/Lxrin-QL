@@ -4,7 +4,7 @@
 
 ```kotlin
 dependencies {
-    testImplementation("ch.lxrin:lxrin-ql-test:3.0.1")
+    testImplementation("ch.lxrin:lxrin-ql-test:3.1.0")
     // optional, for @LxrinPostgresTest
     testImplementation("org.testcontainers:testcontainers-postgresql:2.0.5")
     testImplementation("org.flywaydb:flyway-database-postgresql:13.8.0")

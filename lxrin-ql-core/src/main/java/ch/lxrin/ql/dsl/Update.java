@@ -6,6 +6,8 @@ import ch.lxrin.ql.schema.Table;
 import ch.lxrin.ql.statement.UpdateStatement;
 
 import java.util.Arrays;
+import java.util.Collection;
+import java.util.Optional;
 import java.util.function.Supplier;
 
 /**
@@ -44,6 +46,30 @@ public final class Update<R> extends AbstractDml<R, Update<R>> {
         return this;
     }
 
+    /** {@code SET column = ?} only if {@code apply} is {@code true}, e.g. for PATCH requests. */
+    public <T> Update<R> setIf(boolean apply, Column<T> column, T value) {
+        return apply ? set(column, value) : this;
+    }
+
+    /** {@code SET column = expr} only if {@code apply} is {@code true}. */
+    public <T> Update<R> setIf(boolean apply, Column<T> column, Field<T> value) {
+        return apply ? set(column, value) : this;
+    }
+
+    /**
+     * {@code SET column = ?} if the value is present. An empty optional leaves
+     * the column unchanged; use {@link #setNull(Column)} to clear it.
+     */
+    public <T> Update<R> setIfPresent(Column<T> column, Optional<? extends T> value) {
+        if (value == null) throw new IllegalArgumentException("optional must not be null");
+        return value.isPresent() ? set(column, (T) value.get()) : this;
+    }
+
+    /** Returns {@code true} if at least one column is set. */
+    public boolean hasAssignments() {
+        return !statement.assignments().isEmpty();
+    }
+
     /** {@code SET column = NULL} */
     public <T> Update<R> setNull(Column<T> column) {
         return set(column, Values.nullValue(column.type()));
@@ -68,9 +94,20 @@ public final class Update<R> extends AbstractDml<R, Update<R>> {
         return this;
     }
 
+    /** Adds a list of {@code WHERE} conditions, joined with {@code AND}; {@code null} entries are rejected. */
+    public Update<R> where(Collection<? extends Condition> conditions) {
+        for (Condition c : Conditions.copy(conditions)) statement.addWhere(c);
+        return this;
+    }
+
     /** Adds a condition only if {@code apply} is {@code true}. */
     public Update<R> whereIf(boolean apply, Supplier<Condition> condition) {
         return apply ? where(condition.get()) : this;
+    }
+
+    /** The same as {@link #allRows()}. */
+    public Update<R> all() {
+        return allRows();
     }
 
     /** Confirms that the update intentionally has no {@code WHERE}. */

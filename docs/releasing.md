@@ -40,7 +40,7 @@ All modules are published to Maven Central as `ch.lxrin:*` by the
 1. Set the new version in `gradle.properties`, update `CHANGELOG.md` and the versions
    in `README.md` and `docs/`, and push to `main`. The [`Build`](../.github/workflows/build.yml)
    workflow must be green.
-2. Create a GitHub release with the tag `v<version>` (e.g. `v3.0.1`).
+2. Create a GitHub release with the tag `v<version>` (e.g. `v3.1.0`).
 
 The workflow builds and tests everything, uploads and releases the Maven Central
 artifacts, and publishes the Gradle plugin to the Plugin Portal. Maven Central

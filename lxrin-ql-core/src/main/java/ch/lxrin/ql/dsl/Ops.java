@@ -25,6 +25,12 @@ final class Ops {
         return ctx -> ctx.bind(type, checked);
     }
 
+    /** Rejects a {@code null} value with a message naming the operation. */
+    static <T> T require(T value, String operation) {
+        if (value == null) throw new IllegalArgumentException("the value of " + operation + "(..) must not be null");
+        return value;
+    }
+
     /** A bind parameter with the type of {@code like}; {@code null} is allowed. */
     static <T> QueryPart nullableValue(Field<T> like, T value) {
         DataType<T> type = like.type();
@@ -96,6 +102,15 @@ final class Ops {
             sb.append('"').append(elements[i].replace("\\", "\\\\").replace("\"", "\\\"")).append('"');
         }
         return sb.append('}').toString();
+    }
+
+    static Condition likeEscape(Field<String> field, String keyword, String pattern, char escape) {
+        if (escape == '\'' || escape == '\0') throw new IllegalArgumentException("invalid escape character");
+        QueryPart value = value(field, pattern, "like");
+        String literal = Literals.quote(String.valueOf(escape));
+        QueryPart left = operand(field);
+        return Fields.condition(ctx -> ctx.visit(left).append(' ').append(keyword).append(' ').visit(value)
+                .append(" ESCAPE ").append(literal), false);
     }
 
     /** Escapes {@code %}, {@code _} and {@code \} for use in a {@code LIKE} pattern. */

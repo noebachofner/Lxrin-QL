@@ -5,6 +5,7 @@ import ch.lxrin.ql.schema.Table;
 import ch.lxrin.ql.statement.DeleteStatement;
 
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.function.Supplier;
 
 /**
@@ -40,9 +41,20 @@ public final class Delete<R> extends AbstractDml<R, Delete<R>> {
         return this;
     }
 
+    /** Adds a list of {@code WHERE} conditions, joined with {@code AND}; {@code null} entries are rejected. */
+    public Delete<R> where(Collection<? extends Condition> conditions) {
+        for (Condition c : Conditions.copy(conditions)) statement.addWhere(c);
+        return this;
+    }
+
     /** Adds a condition only if {@code apply} is {@code true}. */
     public Delete<R> whereIf(boolean apply, Supplier<Condition> condition) {
         return apply ? where(condition.get()) : this;
+    }
+
+    /** The same as {@link #allRows()}. */
+    public Delete<R> all() {
+        return allRows();
     }
 
     /** Confirms that the delete intentionally has no {@code WHERE}. */

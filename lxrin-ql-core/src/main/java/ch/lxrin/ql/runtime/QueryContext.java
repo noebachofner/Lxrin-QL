@@ -1,5 +1,7 @@
 package ch.lxrin.ql.runtime;
 
+import ch.lxrin.ql.dsl.Binds;
+import ch.lxrin.ql.dsl.Contributions;
 import ch.lxrin.ql.dsl.Delete;
 import ch.lxrin.ql.dsl.Field;
 import ch.lxrin.ql.dsl.Fields;
@@ -7,6 +9,7 @@ import ch.lxrin.ql.dsl.Insert;
 import ch.lxrin.ql.dsl.Row;
 import ch.lxrin.ql.dsl.Select;
 import ch.lxrin.ql.dsl.Select1;
+import ch.lxrin.ql.dsl.SelectScope;
 import ch.lxrin.ql.dsl.Sql;
 import ch.lxrin.ql.dsl.Truncate;
 import ch.lxrin.ql.dsl.Update;
@@ -35,6 +38,8 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.BiConsumer;
+import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -226,6 +231,37 @@ public final class QueryContext extends ArityContextBase {
     /** Runs a statement written with {@code Sql.statement(..)} and returns the number of affected rows. */
     public long execute(Sql.RawStatement statement) {
         return pipeline.executeOther(new OtherStatement(statement));
+    }
+
+    /** {@code createContribution} on this context; see {@link ch.lxrin.ql.dsl.Dsl#createContribution(Class, Table, BiFunction)}. */
+    public <T> Select<T> createContribution(Class<T> type, Table<?> table,
+                                            BiFunction<SelectScope<T>, Binds, ? extends Select<T>> body) {
+        return Contributions.select(this, type, table, body);
+    }
+
+    /** {@code createContribution} without a preset {@code FROM}. */
+    public <T> Select<T> createContribution(Class<T> type, BiFunction<SelectScope<T>, Binds, ? extends Select<T>> body) {
+        return Contributions.select(this, type, null, body);
+    }
+
+    /** {@code createInsert} on this context. */
+    public <R> Insert<R> createInsert(Table<R> table, BiConsumer<? super Insert<R>, Binds> body) {
+        return Contributions.insert(this, table, body);
+    }
+
+    /** {@code createUpdate} on this context. */
+    public <R> Update<R> createUpdate(Table<R> table, BiConsumer<? super Update<R>, Binds> body) {
+        return Contributions.update(this, table, body);
+    }
+
+    /** {@code createDelete} on this context. */
+    public <R> Delete<R> createDelete(Table<R> table, BiConsumer<? super Delete<R>, Binds> body) {
+        return Contributions.delete(this, table, body);
+    }
+
+    /** {@code createUpsert} on this context. */
+    public <R> Insert<R> createUpsert(Table<R> table, BiConsumer<? super Insert<R>, Binds> body) {
+        return Contributions.upsert(this, table, body);
     }
 
     /** Creates {@code selectFrom} builders; used by the static DSL as well. */

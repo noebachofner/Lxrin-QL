@@ -6,6 +6,7 @@ import ch.lxrin.ql.render.QueryPart;
 import ch.lxrin.ql.render.RenderContext;
 import ch.lxrin.ql.render.RenderedSql;
 import ch.lxrin.ql.runtime.QueryContext;
+import ch.lxrin.ql.schema.ForeignKey;
 import ch.lxrin.ql.schema.Table;
 import ch.lxrin.ql.statement.Join;
 import ch.lxrin.ql.statement.Lock;
@@ -14,6 +15,7 @@ import ch.lxrin.ql.types.SqlTypes;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.function.Function;
@@ -106,6 +108,29 @@ public abstract class AbstractSelect<R, S extends AbstractSelect<R, S>> implemen
         return new JoinStep<>(self(), statement, Join.Type.FULL, table);
     }
 
+    /**
+     * {@code JOIN table ON condition} only if {@code apply} is {@code true};
+     * the supplier is only called then.
+     */
+    public S joinIf(boolean apply, Table<?> table, Supplier<Condition> on) {
+        return apply ? join(table).on(on.get()) : self();
+    }
+
+    /** {@code JOIN table} along a foreign key, only if {@code apply} is {@code true}. */
+    public S joinIf(boolean apply, Table<?> table, ForeignKey key) {
+        return apply ? join(table).onKey(key) : self();
+    }
+
+    /** {@code LEFT JOIN table ON condition} only if {@code apply} is {@code true}. */
+    public S leftJoinIf(boolean apply, Table<?> table, Supplier<Condition> on) {
+        return apply ? leftJoin(table).on(on.get()) : self();
+    }
+
+    /** {@code LEFT JOIN table} along a foreign key, only if {@code apply} is {@code true}. */
+    public S leftJoinIf(boolean apply, Table<?> table, ForeignKey key) {
+        return apply ? leftJoin(table).onKey(key) : self();
+    }
+
     /** {@code CROSS JOIN table} */
     public S crossJoin(Table<?> table) {
         statement.joins().add(new Join(Join.Type.CROSS, table, null, List.of()));
@@ -125,6 +150,12 @@ public abstract class AbstractSelect<R, S extends AbstractSelect<R, S>> implemen
     /** Adds conditions to {@code WHERE}; all conditions are joined with {@code AND}. */
     public S where(Condition... conditions) {
         for (Condition c : conditions) statement.addWhere(requireCondition(c));
+        return self();
+    }
+
+    /** Adds a list of conditions to {@code WHERE}, joined with {@code AND}; {@code null} entries are rejected. */
+    public S where(Collection<? extends Condition> conditions) {
+        for (Condition c : Conditions.copy(conditions)) statement.addWhere(c);
         return self();
     }
 
@@ -151,6 +182,12 @@ public abstract class AbstractSelect<R, S extends AbstractSelect<R, S>> implemen
         return self();
     }
 
+    /** Adds a list of {@code HAVING} conditions, joined with {@code AND}. */
+    public S having(Collection<? extends Condition> conditions) {
+        for (Condition c : Conditions.copy(conditions)) statement.addHaving(c);
+        return self();
+    }
+
     /** Declares named windows ({@code WINDOW w AS (...)}). */
     public S window(WindowDefinition... windows) {
         statement.windows().addAll(Arrays.asList(windows));
@@ -164,6 +201,18 @@ public abstract class AbstractSelect<R, S extends AbstractSelect<R, S>> implemen
     /** Adds {@code ORDER BY} items. */
     public S orderBy(SortField<?>... sortFields) {
         statement.orderBy().addAll(Arrays.asList(sortFields));
+        return self();
+    }
+
+    /**
+     * Adds a dynamic list of {@code ORDER BY} items, e.g. from
+     * {@link Sorts#from(String, java.util.Map)}.
+     */
+    public S orderBy(List<? extends SortField<?>> sortFields) {
+        for (SortField<?> f : sortFields) {
+            if (f == null) throw new IllegalArgumentException("sort field must not be null");
+            statement.orderBy().add(f);
+        }
         return self();
     }
 

@@ -10,7 +10,7 @@ For every table (entity name `User` for the table `app_user` in these examples):
 
 | File | Content |
 |---|---|
-| `UserTable` | `public static final UserTable USERS`; one typed column per database column (`StringColumn`, `NumberColumn<Long>`, `TemporalColumn<Instant>`, `BooleanColumn`, `JsonColumn<String>`, `ArrayColumn<String>`, `Column<T>` for UUIDs, enums and value objects) with nullability, default, identity and generated flags; `PK` (with the key strategy), `UK_…` for unique constraints and unique indexes, `FK_…` for foreign keys; `as(alias)` for aliases; `mapRow(..)` |
+| `UserTable` | `public static final UserTable USERS`; one typed column per database column (`StringColumn`, `NumberColumn<Long>`, `TemporalColumn<Instant>`, `BooleanColumn`, `JsonColumn<String>`, `ArrayColumn<String>`, `RangeColumn`, `TsVectorColumn`, `Column<T>` for UUIDs, enums and value objects) with nullability, default, identity and generated flags; `PK` (with the key strategy), `UK_…` for unique constraints and unique indexes, `FK_…` for foreign keys; `as(alias)` for aliases; `mapRow(..)` |
 | `UserRow` | a record with one component per column |
 | `User` | an entity with a field, getter and setter per column (no setter for generated columns), `id()`, `toRow()`, `fromRow(..)` |
 | `UserKey` | a key record, for composite primary keys |
@@ -41,7 +41,9 @@ Columns, keys and enums keep the comments of the database as Javadoc.
 | enum types | generated enum (or a mapped existing enum) | `Column` |
 | arrays of any of these | `T[]` | `ArrayColumn` |
 | domains | their base type | |
-| ranges, `tsvector`, `tsquery`, `inet`, … | `String` (text form) | `Column` |
+| `daterange`, `tsrange`, `tstzrange`, `int4range`, `int8range`, `numrange` | `String` (text form) | `RangeColumn` (range operators) |
+| `tsvector` | `String` (text form) | `TsVectorColumn` (`tsMatches`) |
+| `tsquery`, `inet`, other types | `String` (text form) | `Column` |
 
 ### Key strategies
 
@@ -104,7 +106,7 @@ joins such as `onKey(ASSET.FK_USER)` compare equal types.
 ```kotlin
 plugins {
     java
-    id("ch.lxrin.ql.codegen") version "3.0.1"
+    id("ch.lxrin.ql.codegen") version "3.1.0"
 }
 
 lxrinQl {
@@ -131,7 +133,7 @@ lxrinQl {
 - Its output is added to the `main` source set (`build/generated/sources/lxrinql/main/java`
   and `build/generated/resources/lxrinql/main`).
 - The plugin is published to the Gradle Plugin Portal and to Maven Central, so
-  `plugins { id(...) version "3.0.1" }` works without extra repositories.
+  `plugins { id(...) version "3.1.0" }` works without extra repositories.
 
 ## Maven
 
@@ -139,7 +141,7 @@ lxrinQl {
 <plugin>
     <groupId>ch.lxrin</groupId>
     <artifactId>lxrin-ql-maven-plugin</artifactId>
-    <version>3.0.1</version>
+    <version>3.1.0</version>
     <executions>
         <execution>
             <goals><goal>generate</goal></goals>
@@ -181,12 +183,12 @@ lxrinQl {
 ## Command line
 
 ```bash
-java -jar lxrin-ql-codegen-3.0.1.jar \
+java -jar lxrin-ql-codegen-3.1.0.jar \
     --package com.example.db --output build/generated/java --resources build/generated/resources \
     --stubs src/main/java --migrations src/main/resources/db/migration \
     --strip-prefixes app_ --table-constants app_user=USERS \
     --forced-types "app_user|id|uuid|com.example.UserId|com.example.Types.USER_ID"
-java -jar lxrin-ql-codegen-3.0.1.jar --config codegen.properties
+java -jar lxrin-ql-codegen-3.1.0.jar --config codegen.properties
 ```
 
 The jar needs its dependencies on the class path, e.g. through your build tool.

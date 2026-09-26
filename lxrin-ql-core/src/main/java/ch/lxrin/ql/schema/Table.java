@@ -1,5 +1,6 @@
 package ch.lxrin.ql.schema;
 
+import ch.lxrin.ql.dsl.Fields;
 import ch.lxrin.ql.dsl.Row;
 import ch.lxrin.ql.render.Identifiers;
 import ch.lxrin.ql.render.QueryPart;
@@ -170,6 +171,8 @@ public abstract class Table<R> implements QueryPart {
         else if (kind == Kind.BOOLEAN && type.javaType() == Boolean.class) c = new BooleanColumn(this, columnName, (DataType) type, flags);
         else if (kind == Kind.JSON) c = new JsonColumn<>(this, columnName, type, flags);
         else if (kind == Kind.ARRAY) c = new ArrayColumn(this, columnName, type, flags);
+        else if (Fields.isRange(type)) c = new RangeColumn(this, columnName, (DataType) type, flags);
+        else if (Fields.isTsVector(type)) c = new TsVectorColumn(this, columnName, (DataType) type, flags);
         else c = new Column<>(this, columnName, type, flags);
         return (Column<T>) register(c);
     }
@@ -202,6 +205,16 @@ public abstract class Table<R> implements QueryPart {
     /** Declares an array column. */
     protected <E> ArrayColumn<E> arrayColumn(String columnName, DataType<E[]> type, int flags) {
         return register(new ArrayColumn<>(this, columnName, type, flags));
+    }
+
+    /** Declares a range column ({@code daterange}, {@code tstzrange}, …). */
+    protected RangeColumn rangeColumn(String columnName, DataType<String> type, int flags) {
+        return register(new RangeColumn(this, columnName, type, flags));
+    }
+
+    /** Declares a {@code tsvector} column. */
+    protected TsVectorColumn tsvectorColumn(String columnName, DataType<String> type, int flags) {
+        return register(new TsVectorColumn(this, columnName, type, flags));
     }
 
     /** Declares any other column (UUIDs, enums, value objects, ...). */

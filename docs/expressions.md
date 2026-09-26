@@ -45,21 +45,10 @@ a `ZoneId` to make it explicit.
 
 ## Conditions
 
-| Method | SQL |
-|---|---|
-| `eq`, `ne`, `gt`, `ge`, `lt`, `le` (value or field) | `=`, `<>`, `>`, `>=`, `<`, `<=` |
-| `isNull()`, `isNotNull()` | `IS NULL`, `IS NOT NULL` |
-| `eqOrIsNull(value)` | `= ?`, or `IS NULL` for `null` |
-| `isDistinctFrom`, `isNotDistinctFrom` | null-safe comparisons |
-| `in(Collection)`, `notIn(Collection)` | `= ANY(?)`, `<> ALL(?)` with **one** array parameter |
-| `in(subquery)`, `notIn(subquery)` | `IN (SELECT …)` |
-| `eqAny(arrayField)` | `= ANY(array)` |
-| `between(a, b)`, `notBetween(a, b)` | `BETWEEN ? AND ?` |
-| `exists(select)`, `notExists(select)` | `EXISTS (…)` |
-| `a.and(b)`, `a.or(b)`, `a.not()` | `(a AND b)`, `(a OR b)`, `NOT (a)` |
-| `Condition.and(list)`, `Condition.or(list)` | `null` and `noCondition()` are skipped |
-| `Condition.noCondition()` | neutral: `TRUE` on its own, ignored by `and`/`or` |
-| `a.andIf(flag, () -> b)` | adds `b` only if `flag` is set |
+Conditions are typed values: `Condition` is a `Field<Boolean>`. Every operator exists
+as a field method (`USERS.EMAIL.eq(email)`) and as a static function
+(`eq(USERS.EMAIL, email)`). The complete list, including ranges, JSON, arrays, row
+values, `ANY`/`ALL` and optional filters, is in [Conditions](conditions.md).
 
 `eq(null)` does not compile (it is ambiguous), and `eq((String) null)` throws. Use
 `isNull()`. `x = NULL` is never true in SQL.
